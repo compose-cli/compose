@@ -6,7 +6,7 @@ use Compose\Actions\Action;
 use Compose\Contracts\Operation;
 use Compose\Enums\GitOperation;
 
-class GitClone implements Action
+class GitClone extends Action
 {
     private string $cloneCommand = 'clone %s';
 

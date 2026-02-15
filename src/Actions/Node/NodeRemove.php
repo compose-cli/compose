@@ -1,11 +1,10 @@
 <?php
 
-namespace Compose\Actions\Composer;
+namespace Compose\Actions\Node;
 
-use Compose\Actions\Action;
 use Compose\Enums\PackageOperation;
 
-class ComposerRemove extends ComposerAction
+class NodeRemove extends NodeAction
 {
     public function type(): PackageOperation
     {
@@ -16,13 +15,13 @@ class ComposerRemove extends ComposerAction
     {
         $command = $this->dev ? $this->removeDevCommand : $this->removeCommand;
 
-        return $this->bin . ' ' . sprintf($command, $this->getEscapedPackages());   
+        return $this->getBinary() . ' ' . sprintf($command, $this->getEscapedPackages());
     }
 
     public function getRollbackCommand(): string
     {
         $command = $this->dev ? $this->installDevCommand : $this->installCommand;
 
-        return $this->bin . ' ' . sprintf($command, $this->getEscapedPackages());
+        return $this->getBinary() . ' ' . sprintf($command, $this->getEscapedPackages());
     }
 }

@@ -6,6 +6,7 @@ use Compose\Actions\Git\GitClone;
 use Compose\Enums\Node;
 use Compose\Contracts\AI;
 use Compose\Enums\Anthropic;
+use Compose\Enums\TaskType;
 
 class Compose
 {
@@ -60,7 +61,7 @@ class Compose
     /**
      * The default node package manager to use.
      */
-    protected Node|string|null $nodePackageManager = null;
+    protected Node|string $nodePackageManager = Node::Npm;
 
     /**
      * The composer binary to use.
@@ -88,6 +89,7 @@ class Compose
 
     public function __construct(
         protected ?string $name = null,
+        protected TaskType|string $type = TaskType::NewProject
     ) {
         $this->name = $name ?? 'default';
     }
@@ -159,9 +161,9 @@ class Compose
         return $this;
     }
 
-    public function step(string $name, callable $callback, ?string $description = null): Step
+    public function step(string $name, callable $callback, ?string $description = null, ?string $message = null): Step
     {
-        return new Step($this, $name, $description, $callback);
+        return new Step($this, $name, $description, $callback, $message);
     }
 
     public function isUsingAI(): bool
@@ -169,9 +171,14 @@ class Compose
         return $this->aiProvider !== null && $this->aiModel !== null;
     }
 
-    public function getNodeBinary(): string|null
+    public function getNodeManager(): Node
     {
         return $this->nodePackageManager;
+    }
+
+    public function getNodeBinary(): string
+    {
+        return $this->nodePackageManager->value;
     }
 
     public function getComposerBinary(): string|null
@@ -184,23 +191,3 @@ class Compose
         return $this->gitBinary;
     }
 }
-
-$compose = new Compose();
-
-$compose
-    ->in('.', fresh: true)
-    ->base(repo: 'https://github.com/laravel/laravel.git', branch: '10.x')
-    ->commit(automatically: true, smart: true)
-    ->ai(Anthropic::ClaudeOpus45)
-    ->git('herd git')
-    ->node(Node::Yarn)
-    ->composer('herd composer');
-
-$compose->before(function (Compose $compose) {
-    // need to actually install the base repository using the git clone command
-    $action = new GitClone(repo: $compose->baseRepo, branch: $compose->baseBranch, bin: $compose->getGitBinary());
-});
-
-$compose->step('Install dependencies', function (Step $step) {
-    $step->composer(install: ['laravel/telescope'], remove: ['spatie/ray', 'laravel/horizon']);
-});

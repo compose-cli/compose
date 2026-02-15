@@ -4,6 +4,8 @@ namespace Compose;
 
 use Compose\Actions\Composer\ComposerInstall;
 use Compose\Actions\Composer\ComposerRemove;
+use Compose\Actions\Node\NodeInstall;
+use Compose\Actions\Node\NodeRemove;
 
 class Step
 {
@@ -56,6 +58,39 @@ class Step
         // if ($run !== null) {
         //     $operations[] = new ComposerRun(script: $run, args: $args ?? [], bin: $this->recipe->getComposerBinary());
         // }
+
+        $this->operations = array_merge($this->operations, $operations);
+
+        return $this;
+    }
+
+    public function node(
+        array|string|null $install = null,
+        array|string|null $dev = null,
+        array|string|null $remove = null,
+        array|string|null $removeDev = null,
+    ): static {
+        /**
+         * All these operations will be deferred until after we make sure we have a package.json file.
+         */
+        $operations = [];
+        $manager = $this->recipe->getNodeManager();
+
+        if ($install !== null) {
+            $operations[] = new NodeInstall($install, dev: false, manager: $manager);
+        }
+
+        if ($dev !== null) {
+            $operations[] = new NodeInstall($dev, dev: true, manager: $manager);
+        }
+
+        if ($remove !== null) {
+            $operations[] = new NodeRemove($remove, dev: false, manager: $manager);
+        }
+
+        if ($removeDev !== null) {
+            $operations[] = new NodeRemove($removeDev, dev: true, manager: $manager);
+        }
 
         $this->operations = array_merge($this->operations, $operations);
 

@@ -41,8 +41,7 @@
     },
     "scripts": {
         "test": "vendor/bin/pest",
-        "test-coverage": "vendor/bin/pest --coverage",
-        "format": "vendor/bin/pint"
+        "format": "@php ./vendor/bin/pint"
     },
     "config": {
         "sort-packages": true,
