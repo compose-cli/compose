@@ -36,3 +36,8 @@ $composer->step('Swap Tailwind for UnoCSS', function (Step $step) {
     $step
         ->node(remove: ['tailwindcss', 'postcss', 'autoprefixer'], dev: ['unocss']);
 }, message: 'Replacing Tailwind with UnoCSS...');
+
+$composer->step('Run build', function (Step $step) {
+    $step
+        ->composer(run: 'build', args: ['--watch']);
+}, message: 'Running build...');

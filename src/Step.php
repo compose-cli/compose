@@ -4,8 +4,10 @@ namespace Compose;
 
 use Compose\Actions\Composer\ComposerInstall;
 use Compose\Actions\Composer\ComposerRemove;
+use Compose\Actions\Composer\ComposerRun;
 use Compose\Actions\Node\NodeInstall;
 use Compose\Actions\Node\NodeRemove;
+use Compose\Actions\Node\NodeRun;
 
 class Step
 {
@@ -55,9 +57,9 @@ class Step
         //     $operations[] = new ComposerScripts($scripts);
         // }
 
-        // if ($run !== null) {
-        //     $operations[] = new ComposerRun(script: $run, args: $args ?? [], bin: $this->recipe->getComposerBinary());
-        // }
+        if ($run !== null) {
+            $operations[] = new ComposerRun(script: $run, args: $args ?? [], bin: $this->recipe->getComposerBinary());
+        }
 
         $this->operations = array_merge($this->operations, $operations);
 
@@ -69,6 +71,9 @@ class Step
         array|string|null $dev = null,
         array|string|null $remove = null,
         array|string|null $removeDev = null,
+        array|null $scripts = null,
+        string|null $run = null,
+        array|string|null $args = null,
     ): static {
         /**
          * All these operations will be deferred until after we make sure we have a package.json file.
@@ -90,6 +95,10 @@ class Step
 
         if ($removeDev !== null) {
             $operations[] = new NodeRemove($removeDev, dev: true, manager: $manager);
+        }
+
+        if ($run !== null) {
+            $operations[] = new NodeRun(script: $run, args: $args ?? [], manager: $manager);
         }
 
         $this->operations = array_merge($this->operations, $operations);
