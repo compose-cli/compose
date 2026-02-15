@@ -18,7 +18,9 @@
         }
     ],
     "require": {
-        "php": "^8.3"
+        "php": "^8.3",
+        "nette/php-generator": "^4.2",
+        "rector/rector": "^2.3"
     },
     "require-dev": {
         "pestphp/pest": "^4.0",
@@ -27,7 +29,10 @@
     "autoload": {
         "psr-4": {
             "Compose\\": "src"
-        }
+        },
+        "files": [
+            "src/helpers.php"
+        ]
     },
     "autoload-dev": {
         "psr-4": {
