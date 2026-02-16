@@ -1,89 +1,78 @@
 <?php
 
-use Compose\Enums\PackageOperation;
 use Compose\Actions\Composer\ComposerInstall;
+use Compose\Enums\PackageOperation;
 
-describe('ComposerInstall', function () {
+describe('ComposerInstall', function (): void {
 
-    it('generates an install command', function () {
-        $action = new ComposerInstall(
+    it('generates an install command', function (): void {
+        $action = (new ComposerInstall(
             packages: ['laravel/framework'],
-            bin: 'composer',
-        );
+        ))->withContext(context());
 
         expect($action)
-            ->toGenerateCommand('composer install ' . escapeshellarg('laravel/framework'))
+            ->toGenerateCommand('composer require laravel/framework')
             ->toBeOperation(PackageOperation::Install);
     });
 
-    it('generates a dev install command', function () {
-        $action = new ComposerInstall(
+    it('generates a dev install command', function (): void {
+        $action = (new ComposerInstall(
             packages: ['pestphp/pest'],
             dev: true,
-            bin: 'composer',
-        );
+        ))->withContext(context());
 
         expect($action)
-            ->toGenerateCommand('composer install ' . escapeshellarg('pestphp/pest') . ' --dev')
+            ->toGenerateCommand('composer require --dev pestphp/pest')
             ->toBeOperation(PackageOperation::InstallDev);
     });
 
-    it('handles multiple packages', function () {
-        $action = new ComposerInstall(
+    it('handles multiple packages', function (): void {
+        $action = (new ComposerInstall(
             packages: ['laravel/framework', 'illuminate/support'],
-            bin: 'composer',
-        );
+        ))->withContext(context());
 
-        expect($action)->toGenerateCommand(
-            'composer install ' . escapeshellarg('laravel/framework') . ' ' . escapeshellarg('illuminate/support'),
-        );
+        expect($action)->toGenerateCommand('composer require laravel/framework illuminate/support');
     });
 
-    it('escapes shell-unsafe characters', function () {
-        $action = new ComposerInstall(
-            packages: ['vendor/package; rm -rf /'],
-            bin: 'composer',
-        );
-
-        expect($action)->toGenerateCommand('composer install ' . escapeshellarg('vendor/package; rm -rf /'));
-    });
-
-    it('uses a custom bin path', function () {
-        $action = new ComposerInstall(
+    it('uses a custom bin path from context', function (): void {
+        $action = (new ComposerInstall(
             packages: ['laravel/framework'],
-            bin: '/usr/local/bin/composer',
-        );
+        ))->withContext(context(composerBinary: '/usr/local/bin/composer'));
 
-        expect($action)->toGenerateCommand('/usr/local/bin/composer install ' . escapeshellarg('laravel/framework'));
+        expect($action)->toGenerateCommand('/usr/local/bin/composer require laravel/framework');
     });
 
-    it('can be rolled back', function () {
-        $action = new ComposerInstall(
+    it('can be rolled back', function (): void {
+        $action = (new ComposerInstall(
             packages: ['laravel/framework'],
-            bin: 'composer',
-        );
-        
-        
-        expect($action->canBeRolledBack())->toBeTrue();
-        expect($action->getRollbackCommand())->toBe('composer remove ' . escapeshellarg('laravel/framework'));
-
-        // can rollback multiple packages
-        $action = new ComposerInstall(
-            packages: ['laravel/framework', 'illuminate/support'],
-            bin: 'composer',
-        );
+        ))->withContext(context());
 
         expect($action->canBeRolledBack())->toBeTrue();
-        expect($action->getRollbackCommand())->toBe('composer remove ' . escapeshellarg('laravel/framework') . ' ' . escapeshellarg('illuminate/support'));
+        expect($action->rollback()->toString())->toBe('composer remove laravel/framework');
+
+        $action = (new ComposerInstall(
+            packages: ['laravel/framework', 'illuminate/support'],
+        ))->withContext(context());
+
+        expect($action->canBeRolledBack())->toBeTrue();
+        expect($action->rollback()->toString())->toBe('composer remove laravel/framework illuminate/support');
     });
 
-    it('can handle a single package as a string', function () {
-        $action = new ComposerInstall(
+    it('can handle a single package as a string', function (): void {
+        $action = (new ComposerInstall(
             packages: 'laravel/framework',
-            bin: 'composer',
-        );
+        ))->withContext(context());
 
-        expect($action)->toGenerateCommand('composer install ' . escapeshellarg('laravel/framework'));
+        expect($action)->toGenerateCommand('composer require laravel/framework');
+    });
+
+    it('returns the correct command array', function (): void {
+        $action = (new ComposerInstall(
+            packages: ['laravel/framework'],
+            dev: true,
+        ))->withContext(context());
+
+        expect($action->command()->toArray())->toBe(['composer', 'require', '--dev', 'laravel/framework']);
     });
 
 });

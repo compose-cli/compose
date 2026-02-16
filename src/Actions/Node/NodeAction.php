@@ -7,38 +7,52 @@ use Compose\Enums\Node;
 
 abstract class NodeAction extends Action
 {
-    protected string $installCommand;
-    protected string $installDevCommand;
-    protected string $removeCommand;
-    protected string $removeDevCommand;
-
     public function __construct(
         public readonly array|string $packages,
         public readonly bool $dev = false,
-        protected readonly Node|string $manager = Node::Npm,
-    ) {
-        [$this->installCommand, $this->installDevCommand, $this->removeCommand, $this->removeDevCommand] = match ($this->manager) {
-            Node::Npm => ['install %s', 'install %s --save-dev', 'uninstall %s', 'uninstall %s --save-dev'],
-            Node::Yarn => ['add %s', 'add %s --dev', 'remove %s', 'remove %s --dev'],
-            Node::Pnpm => ['add %s', 'add %s --save-dev', 'remove %s', 'remove %s --save-dev'],
-            Node::Bun => ['add %s', 'add %s --dev', 'remove %s', 'remove %s --dev'],
-            default => ['add %s', 'add %s --dev', 'remove %s', 'remove %s --dev'],
+        public readonly Node $manager = Node::Npm,
+    ) {}
+
+    /**
+     * Get the packages as a flat array.
+     *
+     * @return string[]
+     */
+    protected function packageList(): array
+    {
+        return (array) $this->packages;
+    }
+
+    /**
+     * Get the install subcommand for this manager.
+     */
+    protected function installVerb(): string
+    {
+        return match ($this->manager) {
+            Node::Npm => 'install',
+            default => 'add',
         };
     }
 
-    abstract public function getCommand(): string;
-
-    protected function getBinary(): string
+    /**
+     * Get the remove subcommand for this manager.
+     */
+    protected function removeVerb(): string
     {
-        return $this->manager instanceof Node ? $this->manager->value : $this->manager;
+        return match ($this->manager) {
+            Node::Npm => 'uninstall',
+            default => 'remove',
+        };
     }
 
-    protected function getEscapedPackages(): string
+    /**
+     * Get the dev flag for this manager.
+     */
+    protected function devFlag(): string
     {
-        if (is_string($this->packages)) {
-            return escapeshellarg($this->packages);
-        }
-
-        return implode(' ', array_map(fn($package) => escapeshellarg($package), $this->packages));
+        return match ($this->manager) {
+            Node::Npm, Node::Pnpm => '--save-dev',
+            default => '--dev',
+        };
     }
 }

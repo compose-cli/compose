@@ -8,7 +8,7 @@ trait InteractsWithFilesystem
 
     protected function initializeTempDirectory(): void
     {
-        $this->tempPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'compose_' . uniqid();
+        $this->tempPath = sys_get_temp_dir().DIRECTORY_SEPARATOR.'compose_'.uniqid();
 
         mkdir($this->tempPath, 0755, true);
     }
@@ -24,14 +24,14 @@ trait InteractsWithFilesystem
 
     protected function tempPath(string $path = ''): string
     {
-        return $this->tempPath . ($path ? DIRECTORY_SEPARATOR . ltrim($path, '/\\') : '');
+        return $this->tempPath.($path ? DIRECTORY_SEPARATOR.ltrim($path, '/\\') : '');
     }
 
     protected function createFile(string $path, string $contents = ''): string
     {
         $fullPath = $this->tempPath($path);
 
-        $directory = dirname($fullPath);
+        $directory = dirname((string) $fullPath);
 
         if (! is_dir($directory)) {
             mkdir($directory, 0755, true);

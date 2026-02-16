@@ -2,11 +2,16 @@
 
 namespace Compose;
 
+use Closure;
 use Compose\Actions\Git\GitClone;
-use Compose\Enums\Node;
 use Compose\Contracts\AI;
-use Compose\Enums\Anthropic;
+use Compose\Enums\Node;
 use Compose\Enums\TaskType;
+use Compose\Events\EventDispatcher;
+use Compose\Execution\Plan;
+use Compose\Execution\ProcessExecutor;
+use Compose\Execution\Runner;
+use Compose\Execution\RunResult;
 
 class Compose
 {
@@ -17,26 +22,23 @@ class Compose
 
     /**
      * Whether to create a wipe-and-replace directory.
-     * 
-     * If false, and the directory exists, we will throw an exception. 
-     * 
-     * Otherwise, we will wipe the directory and start fresh.
      */
     protected bool $fresh = false;
 
     /**
      * The base repository to use for the composition.
-     * 
-     * If not provided, we won't use a base repository, just work in the target directory.
      */
-    public ?string $baseRepo = null;
+    protected ?string $baseRepo = null;
 
     /**
      * The base branch to use for the base repository.
-     * 
-     * If not provided, the default branch of the repository will be used.
      */
-    public ?string $baseBranch = null;
+    protected ?string $baseBranch = null;
+
+    /**
+     * The slugified project directory name (derived from the recipe name).
+     */
+    protected ?string $projectName = null;
 
     /**
      * Whether to commit automatically.
@@ -51,7 +53,7 @@ class Compose
     /**
      * The default AI provider to use.
      */
-    protected string|null $aiProvider = null;
+    protected ?string $aiProvider = null;
 
     /**
      * The default AI model to use.
@@ -66,33 +68,38 @@ class Compose
     /**
      * The composer binary to use.
      */
-    protected string|null $composerBinary = 'composer';
+    protected string $composerBinary = 'composer';
 
     /**
      * The git binary to use.
      */
-    protected string|null $gitBinary = 'git';
+    protected string $gitBinary = 'git';
 
     /**
      * The before callbacks to run before the composition.
-     * 
+     *
      * @var callable[]
      */
     protected array $beforeCallbacks = [];
 
     /**
      * The after callbacks to run after the composition.
-     * 
+     *
      * @var callable[]
      */
     protected array $afterCallbacks = [];
 
+    /**
+     * The steps to run during the composition.
+     *
+     * @var Step[]
+     */
+    protected array $steps = [];
+
     public function __construct(
         protected ?string $name = null,
-        protected TaskType|string $type = TaskType::NewProject
-    ) {
-        $this->name = $name ?? 'default';
-    }
+        protected TaskType|string $type = TaskType::NewProject,
+    ) {}
 
     public function in(string $target = '.', bool $fresh = false): static
     {
@@ -106,6 +113,18 @@ class Compose
     {
         $this->baseRepo = $repo;
         $this->baseBranch = $branch;
+        $this->projectName = slugify($this->getName());
+
+        $directory = $this->projectName;
+
+        array_unshift($this->steps, new Step(
+            context: $this->getBaseContext(),
+            name: 'Clone base repository',
+            description: "Clone {$repo}".($branch ? " (branch: {$branch})" : '')." into {$directory}",
+            callback: function (Step $step) use ($repo, $branch, $directory): void {
+                $step->addOperation(new GitClone(repo: $repo, branch: $branch, directory: $directory));
+            },
+        ));
 
         return $this;
     }
@@ -133,37 +152,152 @@ class Compose
         return $this;
     }
 
-    public function composer(string|null $bin = 'composer'): static
+    public function composer(string $bin): static
     {
         $this->composerBinary = $bin;
 
         return $this;
     }
 
-    public function git(string|null $bin = 'git'): static
+    public function git(string $bin): static
     {
         $this->gitBinary = $bin;
 
         return $this;
     }
 
-    public function before(callable $callback): static
+    public function before(Closure $callback): static
     {
         $this->beforeCallbacks[] = $callback;
 
         return $this;
     }
 
-    public function after(callable $callback): static
+    public function after(Closure $callback): static
     {
         $this->afterCallbacks[] = $callback;
 
         return $this;
     }
 
-    public function step(string $name, callable $callback, ?string $description = null, ?string $message = null): Step
+    public function step(string $name, Closure $callback, ?string $description = null, ?string $message = null): Step
     {
-        return new Step($this, $name, $description, $callback, $message);
+        $step = new Step($this->getContext(), $name, $description, $callback, $message);
+
+        $this->steps[] = $step;
+
+        return $step;
+    }
+
+    /**
+     * Execute the composition and return the result.
+     */
+    public function compose(?EventDispatcher $dispatcher = null): RunResult
+    {
+        $runner = new Runner(new ProcessExecutor, $dispatcher ?? new EventDispatcher);
+
+        return $runner->run($this);
+    }
+
+    /**
+     * Plan the composition without executing anything.
+     */
+    public function plan(): Plan
+    {
+        $runner = new Runner(new ProcessExecutor, new EventDispatcher);
+
+        return $runner->plan($this);
+    }
+
+    /**
+     * Build a RecipeContext from the current configuration.
+     *
+     * When a base repository is configured, the working directory
+     * is set to the project subdirectory (target/projectName) so
+     * that subsequent steps run inside the cloned project.
+     */
+    public function getContext(): RecipeContext
+    {
+        $nodeManager = $this->nodePackageManager instanceof Node
+            ? $this->nodePackageManager
+            : Node::from($this->nodePackageManager);
+
+        $workingDirectory = $this->target;
+
+        if ($this->projectName !== null && $this->target !== null) {
+            $workingDirectory = rtrim($this->target, '/\\').DIRECTORY_SEPARATOR.$this->projectName;
+        }
+
+        return new RecipeContext(
+            composerBinary: $this->composerBinary,
+            gitBinary: $this->gitBinary,
+            nodeManager: $nodeManager,
+            workingDirectory: $workingDirectory,
+        );
+    }
+
+    /**
+     * Build a RecipeContext for the base clone step.
+     *
+     * Uses the raw target directory (not the project subdirectory)
+     * so git clone runs in the parent directory.
+     */
+    public function getBaseContext(): RecipeContext
+    {
+        $nodeManager = $this->nodePackageManager instanceof Node
+            ? $this->nodePackageManager
+            : Node::from($this->nodePackageManager);
+
+        return new RecipeContext(
+            composerBinary: $this->composerBinary,
+            gitBinary: $this->gitBinary,
+            nodeManager: $nodeManager,
+            workingDirectory: $this->target,
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // Getters for the Runner
+    // ------------------------------------------------------------------
+
+    public function getName(): string
+    {
+        return $this->name ?? 'default';
+    }
+
+    public function getProjectName(): ?string
+    {
+        return $this->projectName;
+    }
+
+    public function getBaseRepo(): ?string
+    {
+        return $this->baseRepo;
+    }
+
+    public function getBaseBranch(): ?string
+    {
+        return $this->baseBranch;
+    }
+
+    public function getTarget(): ?string
+    {
+        return $this->target;
+    }
+
+    public function isFresh(): bool
+    {
+        return $this->fresh;
+    }
+
+    public function shouldAutoCommit(): bool
+    {
+        return $this->commitAutomatically;
+    }
+
+    public function shouldUseSmartCommit(): bool
+    {
+        return $this->commitUsingAI;
     }
 
     public function isUsingAI(): bool
@@ -171,22 +305,48 @@ class Compose
         return $this->aiProvider !== null && $this->aiModel !== null;
     }
 
+    /**
+     * @return Step[]
+     */
+    public function getSteps(): array
+    {
+        return $this->steps;
+    }
+
+    /**
+     * @return callable[]
+     */
+    public function getBeforeCallbacks(): array
+    {
+        return $this->beforeCallbacks;
+    }
+
+    /**
+     * @return callable[]
+     */
+    public function getAfterCallbacks(): array
+    {
+        return $this->afterCallbacks;
+    }
+
     public function getNodeManager(): Node
     {
-        return $this->nodePackageManager;
+        return $this->nodePackageManager instanceof Node
+            ? $this->nodePackageManager
+            : Node::from($this->nodePackageManager);
     }
 
     public function getNodeBinary(): string
     {
-        return $this->nodePackageManager->value;
+        return $this->getNodeManager()->value;
     }
 
-    public function getComposerBinary(): string|null
+    public function getComposerBinary(): string
     {
         return $this->composerBinary;
     }
 
-    public function getGitBinary(): string|null
+    public function getGitBinary(): string
     {
         return $this->gitBinary;
     }

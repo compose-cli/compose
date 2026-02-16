@@ -3,19 +3,15 @@
 namespace Compose\Actions\Git;
 
 use Compose\Actions\Action;
-use Compose\Contracts\Operation;
+use Compose\Actions\PendingCommand;
 use Compose\Enums\GitOperation;
 
 class GitClone extends Action
 {
-    private string $cloneCommand = 'clone %s';
-
-    private string $cloneWithBranchCommand = 'clone --branch %s %s';
-
     public function __construct(
         public readonly string $repo,
-        public readonly string|null $branch = null,
-        public readonly string|null $bin = null,
+        public readonly ?string $branch = null,
+        public readonly ?string $directory = null,
     ) {}
 
     public function type(): GitOperation
@@ -23,22 +19,32 @@ class GitClone extends Action
         return GitOperation::Clone;
     }
 
-    public function getCommand(): string
+    public function command(): PendingCommand
     {
-        $args = $this->branch
-            ? sprintf($this->cloneWithBranchCommand, $this->getEscapedBranch(), $this->getEscapedRepo())
-            : sprintf($this->cloneCommand, $this->getEscapedRepo());
+        $cmd = $this->git('clone')
+            ->when($this->branch !== null, fn (PendingCommand $cmd) => $cmd
+                ->flag('--branch')
+                ->argument($this->branch)
+            )
+            ->argument($this->repo);
 
-        return $this->bin . ' ' . $args;
+        if ($this->directory !== null) {
+            $cmd->argument($this->directory);
+        }
+
+        return $cmd;
     }
 
-    private function getEscapedRepo(): string
+    /**
+     * Get the directory name that this clone creates.
+     */
+    public function targetDirectory(): string
     {
-        return escapeshellarg($this->repo);
+        return $this->directory ?? basename($this->repo, '.git');
     }
 
-    private function getEscapedBranch(): string
+    public function rollback(): PendingCommand
     {
-        return escapeshellarg($this->branch);
+        return new PendingCommand('rm', '-rf', $this->targetDirectory());
     }
 }

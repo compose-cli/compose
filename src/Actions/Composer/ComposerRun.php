@@ -3,6 +3,7 @@
 namespace Compose\Actions\Composer;
 
 use Compose\Actions\Action;
+use Compose\Actions\PendingCommand;
 use Compose\Enums\PackageOperation;
 
 class ComposerRun extends Action
@@ -10,7 +11,6 @@ class ComposerRun extends Action
     public function __construct(
         public readonly string $script,
         public readonly array|string $args = [],
-        protected readonly string|null $bin = null,
     ) {}
 
     public function type(): PackageOperation
@@ -18,29 +18,16 @@ class ComposerRun extends Action
         return PackageOperation::Run;
     }
 
-    public function getCommand(): string
+    public function command(): PendingCommand
     {
-        $command = $this->bin . ' run ' . escapeshellarg($this->script);
+        $cmd = $this->composer('run', $this->script);
 
-        $escapedArgs = $this->getEscapedArgs();
+        $args = (array) $this->args;
 
-        if ($escapedArgs !== '') {
-            $command .= ' -- ' . $escapedArgs;
+        if ($args !== []) {
+            $cmd->argument('--', ...$args);
         }
 
-        return $command;
-    }
-
-    protected function getEscapedArgs(): string
-    {
-        if (is_string($this->args)) {
-            return escapeshellarg($this->args);
-        }
-
-        if (empty($this->args)) {
-            return '';
-        }
-
-        return implode(' ', array_map(fn($arg) => escapeshellarg($arg), $this->args));
+        return $cmd;
     }
 }

@@ -20,7 +20,9 @@
     "require": {
         "php": "^8.3",
         "nette/php-generator": "^4.2",
-        "rector/rector": "^2.3"
+        "rector/rector": "^2.3",
+        "symfony/console": "^7.4",
+        "symfony/process": "^8.0"
     },
     "require-dev": {
         "pestphp/pest": "^4.0",
@@ -41,7 +43,15 @@
     },
     "scripts": {
         "test": "vendor/bin/pest",
-        "format": "@php ./vendor/bin/pint"
+        "format": "vendor/bin/pint",
+        "rector": "vendor/bin/rector process",
+        "rector:dry": "vendor/bin/rector process --dry-run",
+        "check": [
+            "@rector",
+            "@format",
+            "@test"
+        ],
+        "compose": "php compose.php"
     },
     "config": {
         "sort-packages": true,

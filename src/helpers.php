@@ -9,3 +9,13 @@ if (! function_exists('compose')) {
         return new Compose($name, $type);
     }
 }
+
+if (! function_exists('slugify')) {
+    function slugify(string $value): string
+    {
+        $slug = preg_replace('/[^a-zA-Z0-9\s-]/', '', $value);
+        $slug = preg_replace('/[\s-]+/', '-', trim((string) $slug));
+
+        return strtolower((string) $slug);
+    }
+}

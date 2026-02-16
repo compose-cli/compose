@@ -2,6 +2,8 @@
 
 namespace Compose;
 
+use Closure;
+use Compose\Actions\Action;
 use Compose\Actions\Composer\ComposerInstall;
 use Compose\Actions\Composer\ComposerRemove;
 use Compose\Actions\Composer\ComposerRun;
@@ -11,57 +13,49 @@ use Compose\Actions\Node\NodeRun;
 
 class Step
 {
+    /**
+     * @var Action[]
+     */
     protected array $operations = [];
 
+    protected bool $resolved = false;
+
     public function __construct(
-        protected readonly Compose $recipe,
-        protected readonly string $name,
-        protected readonly ?string $description = null,
-        protected readonly callable $callback,
-        protected string|null $message = null,
-    ) {
-        //
-    }
+        protected readonly RecipeContext $context,
+        public readonly string $name,
+        public readonly ?string $description = null,
+        public readonly ?Closure $callback = null,
+        public ?string $message = null,
+    ) {}
 
     public function composer(
         array|string|null $install = null,
         array|string|null $dev = null,
         array|string|null $remove = null,
         array|string|null $removeDev = null,
-        array|null $scripts = null,
-        string|null $run = null,
+        ?array $scripts = null,
+        ?string $run = null,
         array|string|null $args = null,
     ): static {
-        /**
-         * All these operations will be deferred until after we make sure we have a composer.json file.
-         */
-        $operations = [];
-
         if ($install !== null) {
-            $operations[] = new ComposerInstall($install, dev: false, bin: $this->recipe->getComposerBinary());
+            $this->operations[] = new ComposerInstall($install, dev: false);
         }
 
         if ($dev !== null) {
-            $operations[] = new ComposerInstall($dev, dev: true, bin: $this->recipe->getComposerBinary());
+            $this->operations[] = new ComposerInstall($dev, dev: true);
         }
 
         if ($remove !== null) {
-            $operations[] = new ComposerRemove($remove, dev: false, bin: $this->recipe->getComposerBinary());
+            $this->operations[] = new ComposerRemove($remove, dev: false);
         }
 
         if ($removeDev !== null) {
-            $operations[] = new ComposerRemove($removeDev, dev: true, bin: $this->recipe->getComposerBinary());
+            $this->operations[] = new ComposerRemove($removeDev, dev: true);
         }
-
-        // if ($scripts !== null) {
-        //     $operations[] = new ComposerScripts($scripts);
-        // }
 
         if ($run !== null) {
-            $operations[] = new ComposerRun(script: $run, args: $args ?? [], bin: $this->recipe->getComposerBinary());
+            $this->operations[] = new ComposerRun(script: $run, args: $args ?? []);
         }
-
-        $this->operations = array_merge($this->operations, $operations);
 
         return $this;
     }
@@ -71,38 +65,70 @@ class Step
         array|string|null $dev = null,
         array|string|null $remove = null,
         array|string|null $removeDev = null,
-        array|null $scripts = null,
-        string|null $run = null,
+        ?array $scripts = null,
+        ?string $run = null,
         array|string|null $args = null,
     ): static {
-        /**
-         * All these operations will be deferred until after we make sure we have a package.json file.
-         */
-        $operations = [];
-        $manager = $this->recipe->getNodeManager();
+        $manager = $this->context->nodeManager;
 
         if ($install !== null) {
-            $operations[] = new NodeInstall($install, dev: false, manager: $manager);
+            $this->operations[] = new NodeInstall($install, dev: false, manager: $manager);
         }
 
         if ($dev !== null) {
-            $operations[] = new NodeInstall($dev, dev: true, manager: $manager);
+            $this->operations[] = new NodeInstall($dev, dev: true, manager: $manager);
         }
 
         if ($remove !== null) {
-            $operations[] = new NodeRemove($remove, dev: false, manager: $manager);
+            $this->operations[] = new NodeRemove($remove, dev: false, manager: $manager);
         }
 
         if ($removeDev !== null) {
-            $operations[] = new NodeRemove($removeDev, dev: true, manager: $manager);
+            $this->operations[] = new NodeRemove($removeDev, dev: true, manager: $manager);
         }
 
         if ($run !== null) {
-            $operations[] = new NodeRun(script: $run, args: $args ?? [], manager: $manager);
+            $this->operations[] = new NodeRun(script: $run, args: $args ?? [], manager: $manager);
         }
 
-        $this->operations = array_merge($this->operations, $operations);
+        return $this;
+    }
+
+    /**
+     * Add an operation directly to this step.
+     */
+    public function addOperation(Action $action): static
+    {
+        $this->operations[] = $action;
 
         return $this;
+    }
+
+    /**
+     * Resolve the step's operations by calling its callback.
+     *
+     * This is the first phase of the two-phase execution model.
+     * The callback populates the operations array, which is then
+     * iterated by the Runner in the second (execution) phase.
+     */
+    public function resolveOperations(): void
+    {
+        if ($this->resolved) {
+            return;
+        }
+
+        if ($this->callback !== null) {
+            call_user_func($this->callback, $this);
+        }
+
+        $this->resolved = true;
+    }
+
+    /**
+     * @return Action[]
+     */
+    public function operations(): array
+    {
+        return $this->operations;
     }
 }

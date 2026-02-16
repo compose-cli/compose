@@ -2,26 +2,33 @@
 
 namespace Compose\Actions\Node;
 
+use Compose\Actions\PendingCommand;
 use Compose\Enums\PackageOperation;
 
 class NodeInstall extends NodeAction
 {
     public function type(): PackageOperation
     {
-        return ($this->dev ? PackageOperation::InstallDev : PackageOperation::Install);
+        return $this->dev ? PackageOperation::InstallDev : PackageOperation::Install;
     }
 
-    public function getCommand(): string
+    public function command(): PendingCommand
     {
-        $command = $this->dev ? $this->installDevCommand : $this->installCommand;
-
-        return $this->getBinary() . ' ' . sprintf($command, $this->getEscapedPackages());
+        return $this->node($this->installVerb())
+            ->when($this->dev, fn (PendingCommand $cmd) => $cmd->flag($this->devFlag()))
+            ->argument(...$this->packageList());
     }
 
-    public function getRollbackCommand(): string
+    public function rollback(): PendingCommand
     {
-        $command = $this->dev ? $this->removeDevCommand : $this->removeCommand;
+        return $this->node($this->removeVerb())
+            ->when($this->dev, fn (PendingCommand $cmd) => $cmd->flag($this->devFlag()))
+            ->argument(...$this->packageList());
+    }
 
-        return $this->getBinary() . ' ' . sprintf($command, $this->getEscapedPackages());
+    #[\Override]
+    public function canBeRolledBack(): bool
+    {
+        return true;
     }
 }

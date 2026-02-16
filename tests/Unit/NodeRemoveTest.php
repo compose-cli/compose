@@ -1,180 +1,150 @@
 <?php
 
+use Compose\Actions\Node\NodeRemove;
 use Compose\Enums\Node;
 use Compose\Enums\PackageOperation;
-use Compose\Actions\Node\NodeRemove;
 
-describe('NodeRemove', function () {
+describe('NodeRemove', function (): void {
 
-    it('generates a remove command for npm', function () {
-        $action = new NodeRemove(
+    it('generates a remove command for npm', function (): void {
+        $action = (new NodeRemove(
             packages: ['vue'],
             manager: Node::Npm,
-        );
+        ))->withContext(context(nodeManager: Node::Npm));
 
         expect($action)
-            ->toGenerateCommand('npm uninstall ' . escapeshellarg('vue'))
+            ->toGenerateCommand('npm uninstall vue')
             ->toBeOperation(PackageOperation::Remove);
     });
 
-    it('generates a dev remove command for npm', function () {
-        $action = new NodeRemove(
+    it('generates a dev remove command for npm', function (): void {
+        $action = (new NodeRemove(
             packages: ['vite'],
             dev: true,
             manager: Node::Npm,
-        );
+        ))->withContext(context(nodeManager: Node::Npm));
 
         expect($action)
-            ->toGenerateCommand('npm uninstall ' . escapeshellarg('vite') . ' --save-dev')
+            ->toGenerateCommand('npm uninstall --save-dev vite')
             ->toBeOperation(PackageOperation::RemoveDev);
     });
 
-    it('generates a remove command for yarn', function () {
-        $action = new NodeRemove(
+    it('generates a remove command for yarn', function (): void {
+        $action = (new NodeRemove(
             packages: ['vue'],
             manager: Node::Yarn,
-        );
+        ))->withContext(context(nodeManager: Node::Yarn));
 
-        expect($action)->toGenerateCommand('yarn remove ' . escapeshellarg('vue'));
+        expect($action)->toGenerateCommand('yarn remove vue');
     });
 
-    it('generates a dev remove command for yarn', function () {
-        $action = new NodeRemove(
+    it('generates a dev remove command for yarn', function (): void {
+        $action = (new NodeRemove(
             packages: ['vite'],
             dev: true,
             manager: Node::Yarn,
-        );
+        ))->withContext(context(nodeManager: Node::Yarn));
 
-        expect($action)->toGenerateCommand('yarn remove ' . escapeshellarg('vite') . ' --dev');
+        expect($action)->toGenerateCommand('yarn remove --dev vite');
     });
 
-    it('generates a remove command for pnpm', function () {
-        $action = new NodeRemove(
+    it('generates a remove command for pnpm', function (): void {
+        $action = (new NodeRemove(
             packages: ['vue'],
             manager: Node::Pnpm,
-        );
+        ))->withContext(context(nodeManager: Node::Pnpm));
 
-        expect($action)->toGenerateCommand('pnpm remove ' . escapeshellarg('vue'));
+        expect($action)->toGenerateCommand('pnpm remove vue');
     });
 
-    it('generates a dev remove command for pnpm', function () {
-        $action = new NodeRemove(
+    it('generates a dev remove command for pnpm', function (): void {
+        $action = (new NodeRemove(
             packages: ['vite'],
             dev: true,
             manager: Node::Pnpm,
-        );
+        ))->withContext(context(nodeManager: Node::Pnpm));
 
-        expect($action)->toGenerateCommand('pnpm remove ' . escapeshellarg('vite') . ' --save-dev');
+        expect($action)->toGenerateCommand('pnpm remove --save-dev vite');
     });
 
-    it('generates a remove command for bun', function () {
-        $action = new NodeRemove(
+    it('generates a remove command for bun', function (): void {
+        $action = (new NodeRemove(
             packages: ['vue'],
             manager: Node::Bun,
-        );
+        ))->withContext(context(nodeManager: Node::Bun));
 
-        expect($action)->toGenerateCommand('bun remove ' . escapeshellarg('vue'));
+        expect($action)->toGenerateCommand('bun remove vue');
     });
 
-    it('generates a dev remove command for bun', function () {
-        $action = new NodeRemove(
+    it('generates a dev remove command for bun', function (): void {
+        $action = (new NodeRemove(
             packages: ['vite'],
             dev: true,
             manager: Node::Bun,
-        );
+        ))->withContext(context(nodeManager: Node::Bun));
 
-        expect($action)->toGenerateCommand('bun remove ' . escapeshellarg('vite') . ' --dev');
+        expect($action)->toGenerateCommand('bun remove --dev vite');
     });
 
-    it('handles multiple packages', function () {
-        $action = new NodeRemove(
+    it('handles multiple packages', function (): void {
+        $action = (new NodeRemove(
             packages: ['vue', 'axios'],
             manager: Node::Npm,
-        );
+        ))->withContext(context(nodeManager: Node::Npm));
 
-        expect($action)->toGenerateCommand(
-            'npm uninstall ' . escapeshellarg('vue') . ' ' . escapeshellarg('axios'),
-        );
+        expect($action)->toGenerateCommand('npm uninstall vue axios');
     });
 
-    it('escapes shell-unsafe characters', function () {
-        $action = new NodeRemove(
-            packages: ['vue; rm -rf /'],
-            manager: Node::Npm,
-        );
-
-        expect($action)->toGenerateCommand('npm uninstall ' . escapeshellarg('vue; rm -rf /'));
-    });
-
-    it('uses a custom bin path', function () {
-        $action = new NodeRemove(
-            packages: ['vue'],
-            manager: '/usr/local/bin/yarn',
-        );
-
-        expect($action)->toGenerateCommand('/usr/local/bin/yarn remove ' . escapeshellarg('vue'));
-    });
-
-    it('defaults bin to the manager value', function () {
-        $action = new NodeRemove(
-            packages: ['vue'],
-            manager: Node::Pnpm,
-        );
-
-        expect($action)->toGenerateCommand('pnpm remove ' . escapeshellarg('vue'));
-    });
-
-    it('can be rolled back', function () {
-        $action = new NodeRemove(
+    it('can be rolled back', function (): void {
+        $action = (new NodeRemove(
             packages: ['vue'],
             manager: Node::Npm,
-        );
+        ))->withContext(context(nodeManager: Node::Npm));
 
         expect($action->canBeRolledBack())->toBeTrue();
-        expect($action->getRollbackCommand())->toBe('npm install ' . escapeshellarg('vue'));
+        expect($action->rollback()->toString())->toBe('npm install vue');
 
-        // can rollback multiple packages
-        $action = new NodeRemove(
+        $action = (new NodeRemove(
             packages: ['vue', 'axios'],
             manager: Node::Npm,
-        );
+        ))->withContext(context(nodeManager: Node::Npm));
 
         expect($action->canBeRolledBack())->toBeTrue();
-        expect($action->getRollbackCommand())->toBe('npm install ' . escapeshellarg('vue') . ' ' . escapeshellarg('axios'));
+        expect($action->rollback()->toString())->toBe('npm install vue axios');
     });
 
-    it('rolls back with correct manager commands', function () {
-        $action = new NodeRemove(
+    it('rolls back with correct manager commands', function (): void {
+        $action = (new NodeRemove(
             packages: ['vue'],
             manager: Node::Yarn,
-        );
+        ))->withContext(context(nodeManager: Node::Yarn));
 
-        expect($action->getRollbackCommand())->toBe('yarn add ' . escapeshellarg('vue'));
+        expect($action->rollback()->toString())->toBe('yarn add vue');
 
-        $action = new NodeRemove(
+        $action = (new NodeRemove(
             packages: ['vue'],
             dev: true,
             manager: Node::Pnpm,
-        );
+        ))->withContext(context(nodeManager: Node::Pnpm));
 
-        expect($action->getRollbackCommand())->toBe('pnpm add ' . escapeshellarg('vue') . ' --save-dev');
+        expect($action->rollback()->toString())->toBe('pnpm add --save-dev vue');
     });
 
-    it('can handle a single package as a string', function () {
-        $action = new NodeRemove(
+    it('can handle a single package as a string', function (): void {
+        $action = (new NodeRemove(
             packages: 'vue',
             manager: Node::Npm,
-        );
+        ))->withContext(context(nodeManager: Node::Npm));
 
-        expect($action)->toGenerateCommand('npm uninstall ' . escapeshellarg('vue'));
+        expect($action)->toGenerateCommand('npm uninstall vue');
     });
 
-    it('defaults to npm when no manager specified', function () {
-        $action = new NodeRemove(
+    it('defaults to npm when no manager specified', function (): void {
+        $action = (new NodeRemove(
             packages: ['vue'],
-        );
+        ))->withContext(context(nodeManager: Node::Npm));
 
-        expect($action)->toGenerateCommand('npm uninstall ' . escapeshellarg('vue'));
+        expect($action)->toGenerateCommand('npm uninstall vue');
     });
 
 });

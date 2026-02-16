@@ -1,6 +1,8 @@
 <?php
 
 use Compose\Contracts\Operation;
+use Compose\Enums\Node;
+use Compose\RecipeContext;
 use Compose\Tests\Concerns\InteractsWithFilesystem;
 
 /*
@@ -16,14 +18,30 @@ uses(InteractsWithFilesystem::class)
 
 /*
 |--------------------------------------------------------------------------
+| Helpers
+|--------------------------------------------------------------------------
+*/
+
+function context(
+    string $composerBinary = 'composer',
+    string $gitBinary = 'git',
+    Node $nodeManager = Node::Npm,
+    ?string $workingDirectory = null,
+): RecipeContext {
+    return new RecipeContext(
+        composerBinary: $composerBinary,
+        gitBinary: $gitBinary,
+        nodeManager: $nodeManager,
+        workingDirectory: $workingDirectory,
+    );
+}
+
+/*
+|--------------------------------------------------------------------------
 | Expectations
 |--------------------------------------------------------------------------
 */
 
-expect()->extend('toGenerateCommand', function (string $expected) {
-    return $this->and($this->value->getCommand())->toBe($expected);
-});
+expect()->extend('toGenerateCommand', fn (string $expected) => $this->and($this->value->command()->toString())->toBe($expected));
 
-expect()->extend('toBeOperation', function (Operation $expected) {
-    return $this->and($this->value->type())->toBe($expected);
-});
+expect()->extend('toBeOperation', fn (Operation $expected) => $this->and($this->value->type())->toBe($expected));

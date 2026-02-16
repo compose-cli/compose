@@ -2,27 +2,33 @@
 
 namespace Compose\Actions\Composer;
 
-use Compose\Actions\Action;
+use Compose\Actions\PendingCommand;
 use Compose\Enums\PackageOperation;
 
 class ComposerInstall extends ComposerAction
 {
     public function type(): PackageOperation
     {
-        return ($this->dev ? PackageOperation::InstallDev : PackageOperation::Install);
+        return $this->dev ? PackageOperation::InstallDev : PackageOperation::Install;
     }
 
-    public function getCommand(): string
+    public function command(): PendingCommand
     {
-        $command = $this->dev ? $this->installDevCommand : $this->installCommand;
-
-        return $this->bin . ' ' . sprintf($command, $this->getEscapedPackages());
+        return $this->composer('require')
+            ->when($this->dev, fn (PendingCommand $cmd) => $cmd->flag('--dev'))
+            ->argument(...$this->packageList());
     }
 
-    public function getRollbackCommand(): string
+    public function rollback(): PendingCommand
     {
-        $command = $this->dev ? $this->removeDevCommand : $this->removeCommand;
+        return $this->composer('remove')
+            ->when($this->dev, fn (PendingCommand $cmd) => $cmd->flag('--dev'))
+            ->argument(...$this->packageList());
+    }
 
-        return $this->bin . ' ' . sprintf($command, $this->getEscapedPackages());
+    #[\Override]
+    public function canBeRolledBack(): bool
+    {
+        return true;
     }
 }
