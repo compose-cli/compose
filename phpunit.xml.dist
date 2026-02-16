@@ -17,6 +17,7 @@
     <testsuites>
         <testsuite name="Compose Test Suite">
             <directory>tests</directory>
+            <exclude>tests/tmp</exclude>
         </testsuite>
     </testsuites>
     <source>
