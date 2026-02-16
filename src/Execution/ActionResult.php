@@ -14,6 +14,7 @@ class ActionResult
         public readonly bool $successful,
         public readonly ?float $duration = null,
         public readonly ?Action $action = null,
+        public readonly bool $warned = false,
     ) {}
 
     /**

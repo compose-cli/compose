@@ -10,6 +10,7 @@ use Compose\Actions\Composer\ComposerRun;
 use Compose\Actions\Node\NodeInstall;
 use Compose\Actions\Node\NodeRemove;
 use Compose\Actions\Node\NodeRun;
+use Compose\Enums\FailureStrategy;
 
 class Step
 {
@@ -26,6 +27,7 @@ class Step
         public readonly ?string $description = null,
         public readonly ?Closure $callback = null,
         public ?string $message = null,
+        public readonly FailureStrategy $failureStrategy = FailureStrategy::Abort,
     ) {}
 
     public function composer(
@@ -36,25 +38,36 @@ class Step
         ?array $scripts = null,
         ?string $run = null,
         array|string|null $args = null,
+        bool $allowFailure = false,
     ): static {
         if ($install !== null) {
-            $this->operations[] = new ComposerInstall($install, dev: false);
+            $action = new ComposerInstall($install, dev: false);
+            $action->allowFailure = $allowFailure;
+            $this->operations[] = $action;
         }
 
         if ($dev !== null) {
-            $this->operations[] = new ComposerInstall($dev, dev: true);
+            $action = new ComposerInstall($dev, dev: true);
+            $action->allowFailure = $allowFailure;
+            $this->operations[] = $action;
         }
 
         if ($remove !== null) {
-            $this->operations[] = new ComposerRemove($remove, dev: false);
+            $action = new ComposerRemove($remove, dev: false);
+            $action->allowFailure = $allowFailure;
+            $this->operations[] = $action;
         }
 
         if ($removeDev !== null) {
-            $this->operations[] = new ComposerRemove($removeDev, dev: true);
+            $action = new ComposerRemove($removeDev, dev: true);
+            $action->allowFailure = $allowFailure;
+            $this->operations[] = $action;
         }
 
         if ($run !== null) {
-            $this->operations[] = new ComposerRun(script: $run, args: $args ?? []);
+            $action = new ComposerRun(script: $run, args: $args ?? []);
+            $action->allowFailure = $allowFailure;
+            $this->operations[] = $action;
         }
 
         return $this;
@@ -68,27 +81,38 @@ class Step
         ?array $scripts = null,
         ?string $run = null,
         array|string|null $args = null,
+        bool $allowFailure = false,
     ): static {
         $manager = $this->context->nodeManager;
 
         if ($install !== null) {
-            $this->operations[] = new NodeInstall($install, dev: false, manager: $manager);
+            $action = new NodeInstall($install, dev: false, manager: $manager);
+            $action->allowFailure = $allowFailure;
+            $this->operations[] = $action;
         }
 
         if ($dev !== null) {
-            $this->operations[] = new NodeInstall($dev, dev: true, manager: $manager);
+            $action = new NodeInstall($dev, dev: true, manager: $manager);
+            $action->allowFailure = $allowFailure;
+            $this->operations[] = $action;
         }
 
         if ($remove !== null) {
-            $this->operations[] = new NodeRemove($remove, dev: false, manager: $manager);
+            $action = new NodeRemove($remove, dev: false, manager: $manager);
+            $action->allowFailure = $allowFailure;
+            $this->operations[] = $action;
         }
 
         if ($removeDev !== null) {
-            $this->operations[] = new NodeRemove($removeDev, dev: true, manager: $manager);
+            $action = new NodeRemove($removeDev, dev: true, manager: $manager);
+            $action->allowFailure = $allowFailure;
+            $this->operations[] = $action;
         }
 
         if ($run !== null) {
-            $this->operations[] = new NodeRun(script: $run, args: $args ?? [], manager: $manager);
+            $action = new NodeRun(script: $run, args: $args ?? [], manager: $manager);
+            $action->allowFailure = $allowFailure;
+            $this->operations[] = $action;
         }
 
         return $this;
@@ -102,6 +126,14 @@ class Step
         $this->operations[] = $action;
 
         return $this;
+    }
+
+    /**
+     * Whether a failed action should be treated as a warning.
+     */
+    public function shouldWarnOnFailure(Action $action): bool
+    {
+        return $action->allowFailure || $this->failureStrategy === FailureStrategy::Continue;
     }
 
     /**

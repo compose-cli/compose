@@ -31,6 +31,23 @@ class ExecuteActions
                 $context->recipeContext->workingDirectory,
             );
 
+            if (! $result->successful && $context->step->shouldWarnOnFailure($action)) {
+                $actionResults[] = new ActionResult(
+                    command: $result->command,
+                    exitCode: $result->exitCode,
+                    output: $result->output,
+                    errorOutput: $result->errorOutput,
+                    successful: false,
+                    duration: $result->duration,
+                    action: $action,
+                    warned: true,
+                );
+
+                $context->dispatcher->dispatch(new ActionFailed($action, $result, warned: true));
+
+                continue;
+            }
+
             $actionResults[] = new ActionResult(
                 command: $result->command,
                 exitCode: $result->exitCode,

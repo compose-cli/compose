@@ -5,6 +5,7 @@ namespace Compose;
 use Closure;
 use Compose\Actions\Git\GitClone;
 use Compose\Contracts\AI;
+use Compose\Enums\FailureStrategy;
 use Compose\Enums\Node;
 use Compose\Enums\TaskType;
 use Compose\Events\EventDispatcher;
@@ -180,9 +181,9 @@ class Compose
         return $this;
     }
 
-    public function step(string $name, Closure $callback, ?string $description = null, ?string $message = null): Step
+    public function step(string $name, Closure $operations, ?string $description = null, ?string $message = null, FailureStrategy $onFailure = FailureStrategy::Abort): Step
     {
-        $step = new Step($this->getContext(), $name, $description, $callback, $message);
+        $step = new Step($this->getContext(), $name, $description, $operations, $message, $onFailure);
 
         $this->steps[] = $step;
 

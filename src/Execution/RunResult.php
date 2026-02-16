@@ -26,6 +26,24 @@ class RunResult
     }
 
     /**
+     * Whether any step produced warnings.
+     */
+    public bool $hasWarnings {
+        get => $this->warnings !== [];
+    }
+
+    /**
+     * All warned action results across all steps.
+     *
+     * @return ActionResult[]
+     */
+    public array $warnings {
+        get => array_merge(
+            ...array_map(fn (StepResult $r) => $r->warnings, $this->stepResults),
+        );
+    }
+
+    /**
      * Create a successful run result.
      *
      * @param  StepResult[]  $stepResults

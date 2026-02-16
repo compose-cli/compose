@@ -10,5 +10,6 @@ class ActionFailed
     public function __construct(
         public readonly Action $action,
         public readonly ActionResult $result,
+        public readonly bool $warned = false,
     ) {}
 }

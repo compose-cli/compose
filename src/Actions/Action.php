@@ -10,6 +10,8 @@ abstract class Action
 {
     protected ?RecipeContext $context = null;
 
+    public bool $allowFailure = false;
+
     /**
      * The operation type this action represents.
      */

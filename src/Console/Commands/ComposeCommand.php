@@ -64,6 +64,11 @@ class ComposeCommand extends Command
 
         $result = $compose->compose($dispatcher);
 
+        if ($result->hasWarnings && $io !== null) {
+            $warningCount = count($result->warnings);
+            $io->warning("{$warningCount} action(s) failed but were allowed to continue.");
+        }
+
         if ($result->successful) {
             $io?->success("All {$result->stepsCompleted} steps completed successfully.");
 
@@ -98,6 +103,16 @@ class ComposeCommand extends Command
         });
 
         $dispatcher->listen(ActionFailed::class, function (ActionFailed $event) use ($io): void {
+            if ($event->warned) {
+                $io->text("  <fg=yellow>⚠</> {$event->action->describe()} <fg=yellow>(warning, continuing)</>");
+
+                if ($event->result->errorOutput !== '') {
+                    $io->text("    <fg=yellow>{$event->result->errorOutput}</>");
+                }
+
+                return;
+            }
+
             $io->text("  <fg=red>✗</> {$event->action->describe()}");
 
             if ($event->result->errorOutput !== '') {

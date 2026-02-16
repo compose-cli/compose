@@ -1,5 +1,7 @@
 <?php
 
+use Compose\Enums\FailureStrategy;
+use Compose\Events\ActionFailed;
 use Compose\Events\EventDispatcher;
 use Compose\Events\StepCompleted;
 use Compose\Events\StepFailed;
@@ -208,6 +210,131 @@ describe('Runner', function (): void {
         expect($executed[0]['command'])->toContain('my-app');
 
         expect($executed[1]['cwd'])->toBe('/tmp/target'.DIRECTORY_SEPARATOR.'my-app');
+    });
+
+    it('continues execution when step has FailureStrategy::Continue', function (): void {
+        ProcessExecutor::fake([
+            'npm uninstall tailwindcss' => ActionResult::failure(1, 'not installed'),
+        ]);
+
+        $recipe = compose('Test Recipe');
+        $recipe->step('Cleanup', function (Step $step): void {
+            $step->node(remove: ['tailwindcss']);
+        }, onFailure: FailureStrategy::Continue);
+        $recipe->step('Install', fn (Step $step) => $step->node(install: ['unocss']));
+
+        $result = $recipe->compose();
+
+        expect($result->successful)->toBeTrue();
+        expect($result->stepsCompleted)->toBe(2);
+        expect($result->hasWarnings)->toBeTrue();
+        expect($result->warnings)->toHaveCount(1);
+
+        ProcessExecutor::assertExecuted(['npm', 'install', 'unocss']);
+    });
+
+    it('continues execution when action has allowFailure', function (): void {
+        ProcessExecutor::fake([
+            'npm uninstall tailwindcss' => ActionResult::failure(1, 'not installed'),
+        ]);
+
+        $recipe = compose('Test Recipe');
+        $recipe->step('Swap CSS', function (Step $step): void {
+            $step
+                ->node(remove: ['tailwindcss'], allowFailure: true)
+                ->node(install: ['unocss']);
+        });
+
+        $result = $recipe->compose();
+
+        expect($result->successful)->toBeTrue();
+        expect($result->hasWarnings)->toBeTrue();
+        expect($result->warnings)->toHaveCount(1);
+
+        ProcessExecutor::assertExecuted(['npm', 'install', 'unocss']);
+    });
+
+    it('does not rollback warned actions', function (): void {
+        ProcessExecutor::fake([
+            'composer require fail-pkg' => ActionResult::failure(1, 'fail'),
+        ]);
+
+        $recipe = compose('Test Recipe');
+        $recipe->step('Mixed', function (Step $step): void {
+            $step
+                ->composer(install: ['good-pkg'])
+                ->composer(install: ['fail-pkg'], allowFailure: true)
+                ->composer(install: ['another-pkg']);
+        });
+
+        $result = $recipe->compose();
+
+        expect($result->successful)->toBeTrue();
+
+        ProcessExecutor::assertNotExecuted(['composer', 'remove', 'fail-pkg']);
+        ProcessExecutor::assertNotExecuted(['composer', 'remove', 'good-pkg']);
+    });
+
+    it('still aborts on failure when action does not allowFailure and step is Abort', function (): void {
+        ProcessExecutor::fake([
+            'composer require bad-pkg' => ActionResult::failure(1, 'fail'),
+        ]);
+
+        $recipe = compose('Test Recipe');
+        $recipe->step('Install', function (Step $step): void {
+            $step->composer(install: ['bad-pkg']);
+        });
+
+        $result = $recipe->compose();
+
+        expect($result->successful)->toBeFalse();
+        expect($result->hasWarnings)->toBeFalse();
+    });
+
+    it('fires warned ActionFailed event for allowed failures', function (): void {
+        ProcessExecutor::fake([
+            'npm uninstall tailwindcss' => ActionResult::failure(1, 'fail'),
+        ]);
+
+        $dispatcher = new EventDispatcher;
+        $warnedEvents = [];
+
+        $dispatcher->listen(ActionFailed::class, function (ActionFailed $event) use (&$warnedEvents): void {
+            if ($event->warned) {
+                $warnedEvents[] = $event;
+            }
+        });
+
+        $recipe = compose('Test Recipe');
+        $recipe->step('Cleanup', function (Step $step): void {
+            $step->node(remove: ['tailwindcss'], allowFailure: true);
+        });
+
+        $recipe->compose($dispatcher);
+
+        expect($warnedEvents)->toHaveCount(1);
+    });
+
+    it('reports warnings in step results', function (): void {
+        ProcessExecutor::fake([
+            'npm uninstall tailwindcss' => ActionResult::failure(1, 'not found'),
+        ]);
+
+        $recipe = compose('Test Recipe');
+        $recipe->step('Cleanup', function (Step $step): void {
+            $step
+                ->node(remove: ['tailwindcss'])
+                ->node(install: ['unocss']);
+        }, onFailure: FailureStrategy::Continue);
+
+        $result = $recipe->compose();
+
+        expect($result->successful)->toBeTrue();
+
+        $stepResult = $result->stepResults[0];
+        expect($stepResult->hasWarnings)->toBeTrue();
+        expect($stepResult->warnings)->toHaveCount(1);
+        expect($stepResult->warnings[0]->warned)->toBeTrue();
     });
 
 });

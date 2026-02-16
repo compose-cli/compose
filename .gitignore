@@ -34,3 +34,7 @@ testbench.yaml
 
 # Tests
 /tests/tmp/**
+
+# Compose
+compose.php
+recipe.php

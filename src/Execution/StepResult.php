@@ -15,6 +15,25 @@ class StepResult
     ) {}
 
     /**
+     * Whether any actions in this step produced warnings.
+     */
+    public bool $hasWarnings {
+        get => $this->warnings !== [];
+    }
+
+    /**
+     * Action results that were flagged as warnings (failed but allowed).
+     *
+     * @return ActionResult[]
+     */
+    public array $warnings {
+        get => array_values(array_filter(
+            $this->actionResults,
+            fn (ActionResult $r) => $r->warned,
+        ));
+    }
+
+    /**
      * Create a successful step result.
      *
      * @param  ActionResult[]  $actionResults
