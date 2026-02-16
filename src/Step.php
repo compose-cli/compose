@@ -7,6 +7,8 @@ use Compose\Actions\Action;
 use Compose\Actions\Composer\ComposerInstall;
 use Compose\Actions\Composer\ComposerRemove;
 use Compose\Actions\Composer\ComposerRun;
+use Compose\Actions\Git\GitAdd;
+use Compose\Actions\Git\GitCommit;
 use Compose\Actions\Node\NodeInstall;
 use Compose\Actions\Node\NodeRemove;
 use Compose\Actions\Node\NodeRun;
@@ -35,7 +37,6 @@ class Step
         array|string|null $dev = null,
         array|string|null $remove = null,
         array|string|null $removeDev = null,
-        ?array $scripts = null,
         ?string $run = null,
         array|string|null $args = null,
         bool $allowFailure = false,
@@ -78,7 +79,6 @@ class Step
         array|string|null $dev = null,
         array|string|null $remove = null,
         array|string|null $removeDev = null,
-        ?array $scripts = null,
         ?string $run = null,
         array|string|null $args = null,
         bool $allowFailure = false,
@@ -114,6 +114,20 @@ class Step
             $action->allowFailure = $allowFailure;
             $this->operations[] = $action;
         }
+
+        return $this;
+    }
+
+    /**
+     * Add a git commit to this step.
+     *
+     * When message is null, the commit message will be resolved
+     * later by the CommitMessageGenerator (AI or default).
+     */
+    public function commit(?string $message = null): static
+    {
+        $this->operations[] = new GitAdd;
+        $this->operations[] = new GitCommit(message: $message);
 
         return $this;
     }

@@ -45,6 +45,8 @@ class GitClone extends Action
 
     public function rollback(): PendingCommand
     {
-        return new PendingCommand('rm', '-rf', $this->targetDirectory());
+        return PHP_OS_FAMILY === 'Windows'
+            ? new PendingCommand('cmd', '/c', 'rmdir', '/s', '/q', $this->targetDirectory())
+            : new PendingCommand('rm', '-rf', $this->targetDirectory());
     }
 }

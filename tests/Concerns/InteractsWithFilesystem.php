@@ -2,6 +2,8 @@
 
 namespace Compose\Tests\Concerns;
 
+use Compose\Filesystem;
+
 trait InteractsWithFilesystem
 {
     protected string $tempPath;
@@ -19,7 +21,7 @@ trait InteractsWithFilesystem
             return;
         }
 
-        $this->deleteDirectory($this->tempPath);
+        Filesystem::deleteDirectory($this->tempPath);
     }
 
     protected function tempPath(string $path = ''): string
@@ -40,19 +42,5 @@ trait InteractsWithFilesystem
         file_put_contents($fullPath, $contents);
 
         return $fullPath;
-    }
-
-    private function deleteDirectory(string $directory): void
-    {
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($directory, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-
-        foreach ($items as $item) {
-            $item->isDir() ? rmdir($item->getRealPath()) : unlink($item->getRealPath());
-        }
-
-        rmdir($directory);
     }
 }

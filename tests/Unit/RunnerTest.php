@@ -338,3 +338,155 @@ describe('Runner', function (): void {
     });
 
 });
+
+describe('Runner auto-commit', function (): void {
+
+    afterEach(function (): void {
+        ProcessExecutor::reset();
+    });
+
+    it('runs git init and auto-commits after each step', function (): void {
+        $fake = ProcessExecutor::fake();
+
+        $recipe = compose('Test Recipe')
+            ->commit(automatically: true);
+
+        $recipe->step('Install', fn (Step $step) => $step->composer(install: ['pkg']));
+
+        $result = $recipe->compose();
+
+        expect($result->successful)->toBeTrue();
+
+        ProcessExecutor::assertExecuted(['git', 'init']);
+        ProcessExecutor::assertExecuted(['git', 'add', '-A']);
+        ProcessExecutor::assertExecuted(['git', 'commit', '-m', 'compose: Install']);
+    });
+
+    it('uses step message for auto-commit when defined', function (): void {
+        $fake = ProcessExecutor::fake();
+
+        $recipe = compose('Test Recipe')
+            ->commit(automatically: true);
+
+        $recipe->step('Install', fn (Step $step) => $step->composer(install: ['pkg']), message: 'feat: install packages');
+
+        $result = $recipe->compose();
+
+        expect($result->successful)->toBeTrue();
+
+        ProcessExecutor::assertExecuted(['git', 'commit', '-m', 'feat: install packages']);
+    });
+
+    it('uses default message format when no step message is set', function (): void {
+        $fake = ProcessExecutor::fake();
+
+        $recipe = compose('Test Recipe')
+            ->commit(automatically: true);
+
+        $recipe->step('Setup frontend', fn (Step $step) => $step->node(install: ['vue']));
+
+        $result = $recipe->compose();
+
+        expect($result->successful)->toBeTrue();
+
+        ProcessExecutor::assertExecuted(['git', 'commit', '-m', 'compose: Setup frontend']);
+    });
+
+    it('does not auto-commit when commit is disabled', function (): void {
+        $fake = ProcessExecutor::fake();
+
+        $recipe = compose('Test Recipe')
+            ->commit(automatically: false);
+
+        $recipe->step('Install', fn (Step $step) => $step->composer(install: ['pkg']));
+
+        $result = $recipe->compose();
+
+        expect($result->successful)->toBeTrue();
+
+        ProcessExecutor::assertNotExecuted(['git', 'init']);
+        ProcessExecutor::assertNotExecuted(['git', 'add', '-A']);
+        ProcessExecutor::assertNotExecuted(['git', 'commit', '-m', '*']);
+    });
+
+    it('skips auto-commit for base clone step', function (): void {
+        $fake = ProcessExecutor::fake();
+
+        $recipe = compose('My App')
+            ->in('/tmp/target')
+            ->commit(automatically: true)
+            ->base('https://github.com/laravel/laravel.git', '11.x');
+
+        $recipe->step('Install', fn (Step $step) => $step->composer(install: ['pkg']));
+
+        $result = $recipe->compose();
+
+        $executed = $fake->executed();
+        $commitCommands = array_filter($executed, fn ($cmd) => ($cmd['command'][0] ?? '') === 'git' && ($cmd['command'][1] ?? '') === 'commit');
+
+        expect($commitCommands)->toHaveCount(1);
+
+        $commit = array_values($commitCommands)[0];
+        expect($commit['command'])->toContain('compose: Install');
+    });
+
+    it('skips auto-commit when step already contains a manual GitCommit', function (): void {
+        $fake = ProcessExecutor::fake();
+
+        $recipe = compose('Test Recipe')
+            ->commit(automatically: true);
+
+        $recipe->step('Install', function (Step $step): void {
+            $step
+                ->composer(install: ['pkg'])
+                ->commit('manual: installed packages');
+        });
+
+        $result = $recipe->compose();
+
+        expect($result->successful)->toBeTrue();
+
+        $executed = $fake->executed();
+        $commitCommands = array_filter($executed, fn ($cmd) => ($cmd['command'][0] ?? '') === 'git' && ($cmd['command'][1] ?? '') === 'commit');
+
+        expect($commitCommands)->toHaveCount(1);
+
+        $commit = array_values($commitCommands)[0];
+        expect($commit['command'])->toContain('manual: installed packages');
+    });
+
+    it('does not fail the recipe when there is nothing to commit', function (): void {
+        ProcessExecutor::fake([
+            'git commit *' => ActionResult::failure(1, 'nothing to commit'),
+        ]);
+
+        $recipe = compose('Test Recipe')
+            ->commit(automatically: true);
+
+        $recipe->step('Install', fn (Step $step) => $step->composer(install: ['pkg']));
+
+        $result = $recipe->compose();
+
+        expect($result->successful)->toBeTrue();
+    });
+
+    it('auto-commits after each step in a multi-step recipe', function (): void {
+        $fake = ProcessExecutor::fake();
+
+        $recipe = compose('Test Recipe')
+            ->commit(automatically: true);
+
+        $recipe->step('Step 1', fn (Step $step) => $step->composer(install: ['pkg-a']));
+        $recipe->step('Step 2', fn (Step $step) => $step->composer(install: ['pkg-b']));
+
+        $result = $recipe->compose();
+
+        expect($result->successful)->toBeTrue();
+
+        $executed = $fake->executed();
+        $commitCommands = array_filter($executed, fn ($cmd) => ($cmd['command'][0] ?? '') === 'git' && ($cmd['command'][1] ?? '') === 'commit');
+
+        expect($commitCommands)->toHaveCount(2);
+    });
+
+});

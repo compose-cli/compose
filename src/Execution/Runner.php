@@ -2,19 +2,27 @@
 
 namespace Compose\Execution;
 
+use Compose\Actions\Git\GitAdd;
+use Compose\Actions\Git\GitCommit;
+use Compose\Actions\Git\GitInit;
 use Compose\Compose;
+use Compose\Contracts\CommitMessageGenerator;
 use Compose\Events\EventDispatcher;
 use Compose\Events\StepCompleted;
 use Compose\Events\StepFailed;
 use Compose\Events\StepStarting;
 use Compose\Execution\Pipes\ExecuteActions;
 use Compose\Execution\Pipes\ResolveOperations;
+use Compose\Filesystem;
+use Compose\RecipeContext;
+use Compose\Step;
 
 class Runner
 {
     public function __construct(
         protected ProcessExecutor $executor,
         protected EventDispatcher $dispatcher,
+        protected CommitMessageGenerator $commitMessageGenerator = new DefaultCommitMessageGenerator,
     ) {}
 
     /**
@@ -31,6 +39,14 @@ class Runner
 
         foreach ($recipe->getBeforeCallbacks() as $callback) {
             $callback($recipe);
+        }
+
+        if ($recipe->isFresh()) {
+            Filesystem::deleteDirectory($projectContext->workingDirectory);
+        }
+
+        if ($recipe->shouldAutoCommit() && ! $hasBase) {
+            $this->gitInit($projectContext);
         }
 
         foreach ($steps as $i => $step) {
@@ -70,6 +86,12 @@ class Runner
             }
 
             $this->dispatcher->dispatch(new StepCompleted($step, $stepResult, $i));
+
+            $isBaseCloneStep = $hasBase && $i === 0;
+
+            if ($recipe->shouldAutoCommit() && $stepResult->successful && ! $isBaseCloneStep) {
+                $this->autoCommit($step, $context, $stepResult);
+            }
         }
 
         foreach ($recipe->getAfterCallbacks() as $callback) {
@@ -114,6 +136,52 @@ class Runner
         return new Plan(
             recipeName: $recipe->getName(),
             steps: $stepPlans,
+        );
+    }
+
+    /**
+     * Initialize a git repository in the project directory.
+     */
+    private function gitInit(RecipeContext $context): void
+    {
+        $action = (new GitInit)->withContext($context);
+        $action->allowFailure = true;
+
+        $this->executor->execute(
+            $action->command()->toArray(),
+            $context->workingDirectory,
+        );
+    }
+
+    /**
+     * Auto-commit changes after a successful step.
+     *
+     * Skips if the step already contains a manual GitCommit action.
+     */
+    private function autoCommit(Step $step, RecipeContext $context, StepResult $stepResult): void
+    {
+        foreach ($step->operations() as $operation) {
+            if ($operation instanceof GitCommit) {
+                return;
+            }
+        }
+
+        $message = $this->commitMessageGenerator->generate($step, $stepResult->actionResults);
+
+        $addAction = (new GitAdd)->withContext($context);
+        $addAction->allowFailure = true;
+
+        $this->executor->execute(
+            $addAction->command()->toArray(),
+            $context->workingDirectory,
+        );
+
+        $commitAction = (new GitCommit(message: $message))->withContext($context);
+        $commitAction->allowFailure = true;
+
+        $this->executor->execute(
+            $commitAction->command()->toArray(),
+            $context->workingDirectory,
         );
     }
 }

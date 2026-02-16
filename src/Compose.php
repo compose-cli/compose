@@ -44,7 +44,7 @@ class Compose
     /**
      * Whether to commit automatically.
      */
-    protected bool $commitAutomatically = true;
+    protected bool $commitAutomatically = false;
 
     /**
      * Whether to use AI generated commit messages.
