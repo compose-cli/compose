@@ -31,12 +31,12 @@ class ExecuteActions
 
             if ($preflightFailure = $this->runPreflight($action, $context)) {
                 $actionResults[] = $preflightFailure;
-    
+
                 $context->result = StepResult::failed(
                     name: $context->step->name,
                     actionResults: $actionResults,
                 );
-    
+
                 return $context;
             }
 

@@ -4,16 +4,16 @@ namespace Compose;
 
 use Closure;
 use Compose\Actions\Action;
+use Compose\Actions\Artisan\ArtisanAction;
 use Compose\Actions\Composer\ComposerInstall;
 use Compose\Actions\Composer\ComposerRemove;
 use Compose\Actions\Composer\ComposerRun;
-use Compose\Actions\ArtisanAction;
-use Compose\Builders\Artisan;
 use Compose\Actions\Git\GitAdd;
 use Compose\Actions\Git\GitCommit;
 use Compose\Actions\Node\NodeInstall;
 use Compose\Actions\Node\NodeRemove;
 use Compose\Actions\Node\NodeRun;
+use Compose\Builders\Artisan;
 use Compose\Enums\FailureStrategy;
 
 class Step
@@ -133,7 +133,7 @@ class Step
         }
 
         $builder = new Artisan;
-        
+
         $command($builder);
 
         foreach ($builder->actions() as $action) {

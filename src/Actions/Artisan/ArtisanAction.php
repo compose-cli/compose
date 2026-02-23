@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Compose\Actions;
+namespace Compose\Actions\Artisan;
 
 use Compose\Actions\Action;
 use Compose\Actions\PendingCommand;

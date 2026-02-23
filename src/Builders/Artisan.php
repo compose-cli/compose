@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Compose\Builders;
 
 use Closure;
-use Compose\Actions\ArtisanAction;
+use Compose\Actions\Artisan\ArtisanAction;
 
 class Artisan
 {

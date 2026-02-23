@@ -1,10 +1,10 @@
 <?php
 
+use Compose\Actions\Artisan\ArtisanAction;
 use Compose\Actions\Git\GitAdd;
 use Compose\Actions\Git\GitCommit;
-use Compose\Step;
-use Compose\Actions\ArtisanAction;
 use Compose\Builders\Artisan;
+use Compose\Step;
 
 describe('Step', function (): void {
 

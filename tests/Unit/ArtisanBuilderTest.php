@@ -1,6 +1,6 @@
 <?php
 
-use Compose\Actions\ArtisanAction;
+use Compose\Actions\Artisan\ArtisanAction;
 use Compose\Builders\Artisan;
 
 describe('Artisan', function (): void {

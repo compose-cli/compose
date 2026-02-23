@@ -1,5 +1,6 @@
 <?php
 
+use Compose\Builders\Artisan;
 use Compose\Enums\FailureStrategy;
 use Compose\Events\ActionCompleted;
 use Compose\Events\ActionExecuting;
@@ -12,7 +13,6 @@ use Compose\Exceptions\DangerousPathException;
 use Compose\Execution\ActionResult;
 use Compose\Execution\ProcessExecutor;
 use Compose\Step;
-use Compose\Builders\Artisan;
 
 describe('Runner', function (): void {
 

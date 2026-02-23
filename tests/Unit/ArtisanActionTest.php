@@ -1,6 +1,6 @@
 <?php
 
-use Compose\Actions\ArtisanAction;
+use Compose\Actions\Artisan\ArtisanAction;
 use Compose\Enums\ArtisanOperation;
 
 describe('ArtisanAction', function (): void {
