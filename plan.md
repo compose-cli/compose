@@ -10,29 +10,7 @@ This document tracks all planned refactors, fixes, and new features for Compose,
 
 These extend the `Step` API with deterministic operations. Each is a new Action class + Step method + tests. They're listed roughly in order of implementation difficulty and user value.
 
-
-
-
-
-### 3.2 Laravel Helper Shortcuts
-
-**Why:** `migrate()`, `seed()`, `publish()`, and `makeModel()` are thin wrappers around `artisan()` that improve readability. They're trivial to implement once Artisan exists.
-
-```php
-$step->migrate(fresh: true, seed: true);
-$step->seed('RolesSeeder', 'TeamSeeder');
-$step->publish(provider: 'Spatie\Permission\PermissionServiceProvider');
-$step->publish(tag: 'permission-migrations');
-$step->makeModel('Team', migration: true, factory: true, seeder: true);
-```
-
-- [ ] Add `Step::migrate(bool $fresh = false, bool $seed = false): static`
-- [ ] Add `Step::seed(string ...$seeders): static`
-- [ ] Add `Step::publish(?string $provider = null, ?string $tag = null): static`
-- [ ] Add `Step::makeModel(string $name, bool $migration = false, bool $factory = false, bool $seeder = false): static`
-- [ ] Each method creates the appropriate `ArtisanAction` internally
-- [ ] Add tests for each shortcut with various parameter combinations
-- [ ] Test that `publish()` with no args infers from the last composer install (stretch goal)
+### 3.1 and 3.2 tasks complete
 
 ### 3.3 File Operations
 
