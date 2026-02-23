@@ -42,6 +42,16 @@ abstract class Action
     }
 
     /**
+     * A command that must succeed before any action of this type executes.
+     *
+     * Return null if no preflight check is needed.
+     */
+    public function preflight(): ?PendingCommand
+    {
+        return null;
+    }
+
+    /**
      * A human-readable description of what this action does.
      */
     public function describe(): string
@@ -99,5 +109,13 @@ abstract class Action
     protected function git(string ...$subcommand): PendingCommand
     {
         return new PendingCommand($this->context()->gitBinary, ...$subcommand);
+    }
+
+    /**
+     * Create a pending command for php artisan.
+     */
+    protected function artisan(string ...$subcommand): PendingCommand
+    {
+        return new PendingCommand($this->context()->phpBinary, 'artisan', ...$subcommand);
     }
 }

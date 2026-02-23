@@ -154,7 +154,7 @@ class Runner
         }
 
         $resolved = realpath($path) ?: $path;
-        $cwd = (string) getcwd();
+        $cwd = realpath(getcwd()) ?: (string) getcwd();
 
         if ($resolved === $cwd || $resolved === '.') {
             throw new DangerousPathException(

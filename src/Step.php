@@ -7,6 +7,8 @@ use Compose\Actions\Action;
 use Compose\Actions\Composer\ComposerInstall;
 use Compose\Actions\Composer\ComposerRemove;
 use Compose\Actions\Composer\ComposerRun;
+use Compose\Actions\ArtisanAction;
+use Compose\Builders\Artisan;
 use Compose\Actions\Git\GitAdd;
 use Compose\Actions\Git\GitCommit;
 use Compose\Actions\Node\NodeInstall;
@@ -110,6 +112,31 @@ class Step
         if ($run !== null) {
             $action = new NodeRun(script: $run, args: $args ?? []);
             $action->allowFailure = $allowFailure;
+            $this->operations[] = $action;
+        }
+
+        return $this;
+    }
+
+    /**
+     * Add artisan operations to this step.
+     *
+     * When passed a string, creates a single artisan command.
+     * When passed a closure, receives an ArtisanBuilder for batch operations.
+     */
+    public function artisan(string|Closure $command): static
+    {
+        if (is_string($command)) {
+            $this->operations[] = new ArtisanAction($command);
+
+            return $this;
+        }
+
+        $builder = new Artisan;
+        
+        $command($builder);
+
+        foreach ($builder->actions() as $action) {
             $this->operations[] = $action;
         }
 

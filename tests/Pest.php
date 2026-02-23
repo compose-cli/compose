@@ -23,12 +23,14 @@ uses(InteractsWithFilesystem::class)
 */
 
 function context(
+    string $phpBinary = 'php',
     string $composerBinary = 'composer',
     string $gitBinary = 'git',
     Node $nodeManager = Node::Npm,
     ?string $workingDirectory = null,
 ): RecipeContext {
     return new RecipeContext(
+        phpBinary: $phpBinary,
         composerBinary: $composerBinary,
         gitBinary: $gitBinary,
         nodeManager: $nodeManager,

@@ -3,6 +3,8 @@
 use Compose\Actions\Git\GitAdd;
 use Compose\Actions\Git\GitCommit;
 use Compose\Step;
+use Compose\Actions\ArtisanAction;
+use Compose\Builders\Artisan;
 
 describe('Step', function (): void {
 
@@ -78,6 +80,62 @@ describe('Step', function (): void {
         expect($operations[1])->toBeInstanceOf(GitAdd::class);
         expect($operations[2])->toBeInstanceOf(GitCommit::class);
         expect($operations[2]->message)->toBe('Install laravel');
+    });
+
+    it('adds a single artisan action from a string', function (): void {
+        $step = new Step(
+            context: context(),
+            name: 'Test step',
+        );
+
+        $step->artisan('make:model Team -mf');
+
+        $operations = $step->operations();
+
+        expect($operations)->toHaveCount(1);
+        expect($operations[0])->toBeInstanceOf(ArtisanAction::class);
+        expect($operations[0]->command)->toBe('make:model Team -mf');
+    });
+
+    it('adds multiple artisan actions from a closure', function (): void {
+        $step = new Step(
+            context: context(),
+            name: 'Test step',
+        );
+
+        $step->artisan(fn (Artisan $a) => $a
+            ->run('make:controller TeamController --api')
+            ->run('make:resource TeamResource')
+        );
+
+        $operations = $step->operations();
+
+        expect($operations)->toHaveCount(2);
+        expect($operations[0])->toBeInstanceOf(ArtisanAction::class);
+        expect($operations[0]->command)->toBe('make:controller TeamController --api');
+        expect($operations[1]->command)->toBe('make:resource TeamResource');
+    });
+
+    it('chains artisan with other methods', function (): void {
+        $step = new Step(
+            context: context(),
+            name: 'Test step',
+            callback: function (Step $step): void {
+                $step
+                    ->composer(install: ['laravel/framework'])
+                    ->artisan('migrate')
+                    ->commit('Setup');
+            },
+        );
+
+        $step->resolveOperations();
+
+        $operations = $step->operations();
+
+        expect($operations)->toHaveCount(4);
+        expect($operations[1])->toBeInstanceOf(ArtisanAction::class);
+        expect($operations[2])->toBeInstanceOf(GitAdd::class);
+        expect($operations[3])->toBeInstanceOf(GitCommit::class);
     });
 
 });

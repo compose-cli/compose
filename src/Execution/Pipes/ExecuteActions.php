@@ -15,6 +15,11 @@ use Compose\Execution\StepResult;
 class ExecuteActions
 {
     /**
+     * @var array<class-string, true>
+     */
+    private array $preflighted = [];
+
+    /**
      * Execute each action in the step, managing rollback on failure.
      */
     public function handle(StepContext $context, Closure $next): mixed
@@ -23,6 +28,17 @@ class ExecuteActions
 
         foreach ($context->step->operations() as $action) {
             $action->withContext($context->recipeContext);
+
+            if ($preflightFailure = $this->runPreflight($action, $context)) {
+                $actionResults[] = $preflightFailure;
+    
+                $context->result = StepResult::failed(
+                    name: $context->step->name,
+                    actionResults: $actionResults,
+                );
+    
+                return $context;
+            }
 
             $context->dispatcher->dispatch(new ActionExecuting($action));
 
@@ -92,5 +108,48 @@ class ExecuteActions
         );
 
         return $next($context);
+    }
+
+    /**
+     * Run the preflight check for an action if it hasn't been run yet.
+     *
+     * Returns an ActionResult on failure, or null if the check passed or wasn't needed.
+     */
+    private function runPreflight(\Compose\Actions\Action $action, StepContext $context): ?ActionResult
+    {
+        $class = $action::class;
+
+        if (isset($this->preflighted[$class])) {
+            return null;
+        }
+
+        $preflight = $action->preflight();
+
+        if ($preflight === null) {
+            $this->preflighted[$class] = true;
+
+            return null;
+        }
+
+        $result = $context->executor->execute(
+            $preflight->toArray(),
+            $context->recipeContext->workingDirectory,
+        );
+
+        $this->preflighted[$class] = true;
+
+        if (! $result->successful) {
+            return new ActionResult(
+                command: $result->command,
+                exitCode: $result->exitCode,
+                output: $result->output,
+                errorOutput: "Preflight check failed: {$preflight->toString()}",
+                successful: false,
+                duration: $result->duration,
+                action: $action,
+            );
+        }
+
+        return null;
     }
 }

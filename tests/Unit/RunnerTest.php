@@ -12,6 +12,7 @@ use Compose\Exceptions\DangerousPathException;
 use Compose\Execution\ActionResult;
 use Compose\Execution\ProcessExecutor;
 use Compose\Step;
+use Compose\Builders\Artisan;
 
 describe('Runner', function (): void {
 
@@ -598,6 +599,86 @@ describe('Runner fresh guard', function (): void {
         if (is_dir($tempDir)) {
             rmdir($tempDir);
         }
+    });
+
+});
+
+describe('Runner preflight', function (): void {
+
+    afterEach(function (): void {
+        ProcessExecutor::reset();
+    });
+
+    it('runs artisan actions when preflight passes', function (): void {
+        ProcessExecutor::fake();
+
+        $recipe = compose('Test Recipe')->in('.');
+        $recipe->step('Artisan', function (Step $step): void {
+            $step->artisan('migrate');
+        });
+
+        $result = $recipe->run();
+
+        expect($result->successful)->toBeTrue();
+
+        ProcessExecutor::assertExecuted(['php', 'artisan', '--version']);
+        ProcessExecutor::assertExecuted(['php', 'artisan', 'migrate']);
+    });
+
+    it('fails the step when artisan preflight fails', function (): void {
+        ProcessExecutor::fake([
+            'php artisan --version' => ActionResult::failure(1, 'php: command not found'),
+        ]);
+
+        $recipe = compose('Test Recipe')->in('.');
+        $recipe->step('Artisan', function (Step $step): void {
+            $step->artisan('migrate');
+        });
+
+        $result = $recipe->run();
+
+        expect($result->successful)->toBeFalse();
+
+        ProcessExecutor::assertNotExecuted(['php', 'artisan', 'migrate']);
+    });
+
+    it('only runs preflight once for multiple artisan actions in a step', function (): void {
+        $fake = ProcessExecutor::fake();
+
+        $recipe = compose('Test Recipe')->in('.');
+        $recipe->step('Artisan', function (Step $step): void {
+            $step->artisan(fn (Artisan $a) => $a
+                ->run('make:model Team')
+                ->run('make:controller TeamController')
+            );
+        });
+
+        $result = $recipe->run();
+
+        expect($result->successful)->toBeTrue();
+
+        $executed = $fake->executed();
+        $preflightCommands = array_filter(
+            $executed,
+            fn (array $cmd): bool => $cmd['command'] === ['php', 'artisan', '--version'],
+        );
+
+        expect($preflightCommands)->toHaveCount(1);
+    });
+
+    it('does not run preflight for non-artisan actions', function (): void {
+        ProcessExecutor::fake();
+
+        $recipe = compose('Test Recipe')->in('.');
+        $recipe->step('Composer', function (Step $step): void {
+            $step->composer(install: ['laravel/framework']);
+        });
+
+        $result = $recipe->run();
+
+        expect($result->successful)->toBeTrue();
+
+        ProcessExecutor::assertNotExecuted(['php', 'artisan', '--version']);
     });
 
 });
