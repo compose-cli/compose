@@ -24,7 +24,7 @@ describe('Runner', function (): void {
             $step->composer(install: ['laravel/framework']);
         });
 
-        $result = $recipe->compose();
+        $result = $recipe->run();
 
         expect($result->successful)->toBeTrue();
         expect($result->stepsCompleted)->toBe(1);
@@ -40,7 +40,7 @@ describe('Runner', function (): void {
         $recipe->step('Step 1', fn (Step $step) => $step->composer(install: ['pkg-a']));
         $recipe->step('Step 2', fn (Step $step) => $step->composer(install: ['pkg-b']));
 
-        $result = $recipe->compose();
+        $result = $recipe->run();
 
         expect($result->successful)->toBeTrue();
         expect($result->stepsCompleted)->toBe(2);
@@ -58,7 +58,7 @@ describe('Runner', function (): void {
         $recipe->step('Step 1', fn (Step $step) => $step->composer(install: ['fail-pkg']));
         $recipe->step('Step 2', fn (Step $step) => $step->composer(install: ['never-reached']));
 
-        $result = $recipe->compose();
+        $result = $recipe->run();
 
         expect($result->successful)->toBeFalse();
         expect($result->failedAtStep)->toBe(0);
@@ -80,7 +80,7 @@ describe('Runner', function (): void {
                 ->composer(install: ['pkg-b']);
         });
 
-        $result = $recipe->compose();
+        $result = $recipe->run();
 
         expect($result->successful)->toBeFalse();
 
@@ -106,7 +106,7 @@ describe('Runner', function (): void {
         $recipe = compose('Test Recipe');
         $recipe->step('Step 1', fn (Step $step) => $step->composer(install: ['pkg']));
 
-        $recipe->compose($dispatcher);
+        $recipe->run($dispatcher);
 
         expect($events)->toBe(['starting', 'completed']);
     });
@@ -126,7 +126,7 @@ describe('Runner', function (): void {
         $recipe = compose('Test Recipe');
         $recipe->step('Bad step', fn (Step $step) => $step->composer(install: ['bad-pkg']));
 
-        $recipe->compose($dispatcher);
+        $recipe->run($dispatcher);
 
         expect($failedEvent)->not->toBeNull();
         /** @var StepFailed $failedEvent */
@@ -150,7 +150,7 @@ describe('Runner', function (): void {
             $step->composer(install: ['pkg']);
         });
 
-        $recipe->compose();
+        $recipe->run();
 
         expect($callOrder)->toBe(['before', 'step', 'after']);
     });
@@ -169,7 +169,7 @@ describe('Runner', function (): void {
 
         $recipe->step('Failing', fn (Step $step) => $step->composer(install: ['pkg']));
 
-        $recipe->compose();
+        $recipe->run();
 
         expect($afterRan)->toBeFalse();
     });
@@ -185,7 +185,7 @@ describe('Runner', function (): void {
             $step->composer(dev: ['fail-pkg']);
         });
 
-        $result = $recipe->compose();
+        $result = $recipe->run();
 
         expect($result->successful)->toBeFalse();
         expect($result->failedAtStep)->toBe(1);
@@ -202,7 +202,7 @@ describe('Runner', function (): void {
 
         $recipe->step('Install', fn (Step $step) => $step->composer(install: ['pkg']));
 
-        $recipe->compose();
+        $recipe->run();
 
         $executed = $fake->executed();
 
@@ -223,7 +223,7 @@ describe('Runner', function (): void {
         }, onFailure: FailureStrategy::Continue);
         $recipe->step('Install', fn (Step $step) => $step->node(install: ['unocss']));
 
-        $result = $recipe->compose();
+        $result = $recipe->run();
 
         expect($result->successful)->toBeTrue();
         expect($result->stepsCompleted)->toBe(2);
@@ -245,7 +245,7 @@ describe('Runner', function (): void {
                 ->node(install: ['unocss']);
         });
 
-        $result = $recipe->compose();
+        $result = $recipe->run();
 
         expect($result->successful)->toBeTrue();
         expect($result->hasWarnings)->toBeTrue();
@@ -267,7 +267,7 @@ describe('Runner', function (): void {
                 ->composer(install: ['another-pkg']);
         });
 
-        $result = $recipe->compose();
+        $result = $recipe->run();
 
         expect($result->successful)->toBeTrue();
 
@@ -285,7 +285,7 @@ describe('Runner', function (): void {
             $step->composer(install: ['bad-pkg']);
         });
 
-        $result = $recipe->compose();
+        $result = $recipe->run();
 
         expect($result->successful)->toBeFalse();
         expect($result->hasWarnings)->toBeFalse();
@@ -310,7 +310,7 @@ describe('Runner', function (): void {
             $step->node(remove: ['tailwindcss'], allowFailure: true);
         });
 
-        $recipe->compose($dispatcher);
+        $recipe->run($dispatcher);
 
         expect($warnedEvents)->toHaveCount(1);
     });
@@ -327,7 +327,7 @@ describe('Runner', function (): void {
                 ->node(install: ['unocss']);
         }, onFailure: FailureStrategy::Continue);
 
-        $result = $recipe->compose();
+        $result = $recipe->run();
 
         expect($result->successful)->toBeTrue();
 
@@ -353,7 +353,7 @@ describe('Runner auto-commit', function (): void {
 
         $recipe->step('Install', fn (Step $step) => $step->composer(install: ['pkg']));
 
-        $result = $recipe->compose();
+        $result = $recipe->run();
 
         expect($result->successful)->toBeTrue();
 
@@ -370,7 +370,7 @@ describe('Runner auto-commit', function (): void {
 
         $recipe->step('Install', fn (Step $step) => $step->composer(install: ['pkg']), message: 'feat: install packages');
 
-        $result = $recipe->compose();
+        $result = $recipe->run();
 
         expect($result->successful)->toBeTrue();
 
@@ -385,7 +385,7 @@ describe('Runner auto-commit', function (): void {
 
         $recipe->step('Setup frontend', fn (Step $step) => $step->node(install: ['vue']));
 
-        $result = $recipe->compose();
+        $result = $recipe->run();
 
         expect($result->successful)->toBeTrue();
 
@@ -400,7 +400,7 @@ describe('Runner auto-commit', function (): void {
 
         $recipe->step('Install', fn (Step $step) => $step->composer(install: ['pkg']));
 
-        $result = $recipe->compose();
+        $result = $recipe->run();
 
         expect($result->successful)->toBeTrue();
 
@@ -419,7 +419,7 @@ describe('Runner auto-commit', function (): void {
 
         $recipe->step('Install', fn (Step $step) => $step->composer(install: ['pkg']));
 
-        $result = $recipe->compose();
+        $result = $recipe->run();
 
         $executed = $fake->executed();
         $commitCommands = array_filter($executed, fn ($cmd) => ($cmd['command'][0] ?? '') === 'git' && ($cmd['command'][1] ?? '') === 'commit');
@@ -442,7 +442,7 @@ describe('Runner auto-commit', function (): void {
                 ->commit('manual: installed packages');
         });
 
-        $result = $recipe->compose();
+        $result = $recipe->run();
 
         expect($result->successful)->toBeTrue();
 
@@ -465,7 +465,7 @@ describe('Runner auto-commit', function (): void {
 
         $recipe->step('Install', fn (Step $step) => $step->composer(install: ['pkg']));
 
-        $result = $recipe->compose();
+        $result = $recipe->run();
 
         expect($result->successful)->toBeTrue();
     });
@@ -479,7 +479,7 @@ describe('Runner auto-commit', function (): void {
         $recipe->step('Step 1', fn (Step $step) => $step->composer(install: ['pkg-a']));
         $recipe->step('Step 2', fn (Step $step) => $step->composer(install: ['pkg-b']));
 
-        $result = $recipe->compose();
+        $result = $recipe->run();
 
         expect($result->successful)->toBeTrue();
 

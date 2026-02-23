@@ -181,19 +181,19 @@ class Compose
         return $this;
     }
 
-    public function step(string $name, Closure $operations, ?string $description = null, ?string $message = null, FailureStrategy $onFailure = FailureStrategy::Abort): Step
+    public function step(string $name, Closure $operations, ?string $description = null, ?string $message = null, FailureStrategy $onFailure = FailureStrategy::Abort): static
     {
         $step = new Step($this->getContext(), $name, $description, $operations, $message, $onFailure);
 
         $this->steps[] = $step;
 
-        return $step;
+        return $this;
     }
 
     /**
      * Execute the composition and return the result.
      */
-    public function compose(?EventDispatcher $dispatcher = null): RunResult
+    public function run(?EventDispatcher $dispatcher = null): RunResult
     {
         $runner = new Runner(new ProcessExecutor, $dispatcher ?? new EventDispatcher);
 

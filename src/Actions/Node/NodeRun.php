@@ -12,7 +12,6 @@ class NodeRun extends Action
     public function __construct(
         public readonly string $script,
         public readonly array|string $args = [],
-        public readonly Node $manager = Node::Npm,
     ) {}
 
     public function type(): PackageOperation
@@ -22,7 +21,7 @@ class NodeRun extends Action
 
     public function command(): PendingCommand
     {
-        $usesRun = match ($this->manager) {
+        $usesRun = match ($this->manager()) {
             Node::Yarn, Node::Bun => false,
             default => true,
         };
@@ -34,7 +33,7 @@ class NodeRun extends Action
         $args = (array) $this->args;
 
         if ($args !== []) {
-            $usesSeparator = match ($this->manager) {
+            $usesSeparator = match ($this->manager()) {
                 Node::Yarn, Node::Bun => false,
                 default => true,
             };

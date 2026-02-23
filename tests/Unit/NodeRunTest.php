@@ -9,7 +9,6 @@ describe('NodeRun', function (): void {
     it('generates a run command for npm', function (): void {
         $action = (new NodeRun(
             script: 'dev',
-            manager: Node::Npm,
         ))->withContext(context(nodeManager: Node::Npm));
 
         expect($action)
@@ -20,7 +19,6 @@ describe('NodeRun', function (): void {
     it('generates a run command for yarn', function (): void {
         $action = (new NodeRun(
             script: 'dev',
-            manager: Node::Yarn,
         ))->withContext(context(nodeManager: Node::Yarn));
 
         expect($action)->toGenerateCommand('yarn dev');
@@ -29,7 +27,6 @@ describe('NodeRun', function (): void {
     it('generates a run command for pnpm', function (): void {
         $action = (new NodeRun(
             script: 'dev',
-            manager: Node::Pnpm,
         ))->withContext(context(nodeManager: Node::Pnpm));
 
         expect($action)->toGenerateCommand('pnpm run dev');
@@ -38,7 +35,6 @@ describe('NodeRun', function (): void {
     it('generates a run command for bun', function (): void {
         $action = (new NodeRun(
             script: 'dev',
-            manager: Node::Bun,
         ))->withContext(context(nodeManager: Node::Bun));
 
         expect($action)->toGenerateCommand('bun dev');
@@ -48,7 +44,6 @@ describe('NodeRun', function (): void {
         $action = (new NodeRun(
             script: 'dev',
             args: ['--host', '--port=3000'],
-            manager: Node::Npm,
         ))->withContext(context(nodeManager: Node::Npm));
 
         expect($action)->toGenerateCommand('npm run dev -- --host --port=3000');
@@ -58,7 +53,6 @@ describe('NodeRun', function (): void {
         $action = (new NodeRun(
             script: 'dev',
             args: ['--host', '--port=3000'],
-            manager: Node::Yarn,
         ))->withContext(context(nodeManager: Node::Yarn));
 
         expect($action)->toGenerateCommand('yarn dev --host --port=3000');
@@ -68,7 +62,6 @@ describe('NodeRun', function (): void {
         $action = (new NodeRun(
             script: 'dev',
             args: ['--host'],
-            manager: Node::Pnpm,
         ))->withContext(context(nodeManager: Node::Pnpm));
 
         expect($action)->toGenerateCommand('pnpm run dev -- --host');
@@ -78,7 +71,6 @@ describe('NodeRun', function (): void {
         $action = (new NodeRun(
             script: 'dev',
             args: ['--host'],
-            manager: Node::Bun,
         ))->withContext(context(nodeManager: Node::Bun));
 
         expect($action)->toGenerateCommand('bun dev --host');
@@ -88,7 +80,6 @@ describe('NodeRun', function (): void {
         $action = (new NodeRun(
             script: 'dev',
             args: '--host',
-            manager: Node::Npm,
         ))->withContext(context(nodeManager: Node::Npm));
 
         expect($action)->toGenerateCommand('npm run dev -- --host');
@@ -98,7 +89,6 @@ describe('NodeRun', function (): void {
         $action = (new NodeRun(
             script: 'test',
             args: ['--watch', '--coverage', '--verbose'],
-            manager: Node::Npm,
         ))->withContext(context(nodeManager: Node::Npm));
 
         expect($action)->toGenerateCommand('npm run test -- --watch --coverage --verbose');
@@ -115,7 +105,6 @@ describe('NodeRun', function (): void {
     it('cannot be rolled back', function (): void {
         $action = (new NodeRun(
             script: 'dev',
-            manager: Node::Npm,
         ))->withContext(context(nodeManager: Node::Npm));
 
         expect($action->canBeRolledBack())->toBeFalse();
@@ -126,7 +115,6 @@ describe('NodeRun', function (): void {
         $action = (new NodeRun(
             script: 'dev',
             args: ['--host'],
-            manager: Node::Npm,
         ))->withContext(context(nodeManager: Node::Npm));
 
         expect($action->command()->toArray())->toBe(['npm', 'run', 'dev', '--', '--host']);

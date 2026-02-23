@@ -62,7 +62,7 @@ class ComposeCommand extends Command
 
         $this->registerEventListeners($dispatcher, $io);
 
-        $result = $compose->compose($dispatcher);
+        $result = $compose->run($dispatcher);
 
         if ($result->hasWarnings && $io !== null) {
             $warningCount = count($result->warnings);

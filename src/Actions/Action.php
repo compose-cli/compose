@@ -3,6 +3,7 @@
 namespace Compose\Actions;
 
 use Compose\Contracts\Operation;
+use Compose\Enums\Node;
 use Compose\RecipeContext;
 use RuntimeException;
 
@@ -77,11 +78,19 @@ abstract class Action
     }
 
     /**
+     * Get the configured node package manager.
+     */
+    protected function manager(): Node
+    {
+        return $this->context()->nodeManager;
+    }
+
+    /**
      * Create a pending command for the node package manager binary.
      */
     protected function node(string ...$subcommand): PendingCommand
     {
-        return new PendingCommand($this->context()->nodeManager->value, ...$subcommand);
+        return new PendingCommand($this->manager()->value, ...$subcommand);
     }
 
     /**

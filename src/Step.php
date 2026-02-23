@@ -83,34 +83,32 @@ class Step
         array|string|null $args = null,
         bool $allowFailure = false,
     ): static {
-        $manager = $this->context->nodeManager;
-
         if ($install !== null) {
-            $action = new NodeInstall($install, dev: false, manager: $manager);
+            $action = new NodeInstall($install, dev: false);
             $action->allowFailure = $allowFailure;
             $this->operations[] = $action;
         }
 
         if ($dev !== null) {
-            $action = new NodeInstall($dev, dev: true, manager: $manager);
+            $action = new NodeInstall($dev, dev: true);
             $action->allowFailure = $allowFailure;
             $this->operations[] = $action;
         }
 
         if ($remove !== null) {
-            $action = new NodeRemove($remove, dev: false, manager: $manager);
+            $action = new NodeRemove($remove, dev: false);
             $action->allowFailure = $allowFailure;
             $this->operations[] = $action;
         }
 
         if ($removeDev !== null) {
-            $action = new NodeRemove($removeDev, dev: true, manager: $manager);
+            $action = new NodeRemove($removeDev, dev: true);
             $action->allowFailure = $allowFailure;
             $this->operations[] = $action;
         }
 
         if ($run !== null) {
-            $action = new NodeRun(script: $run, args: $args ?? [], manager: $manager);
+            $action = new NodeRun(script: $run, args: $args ?? []);
             $action->allowFailure = $allowFailure;
             $this->operations[] = $action;
         }
