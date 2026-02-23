@@ -1,11 +1,14 @@
 <?php
 
 use Compose\Enums\FailureStrategy;
+use Compose\Events\ActionCompleted;
+use Compose\Events\ActionExecuting;
 use Compose\Events\ActionFailed;
 use Compose\Events\EventDispatcher;
 use Compose\Events\StepCompleted;
 use Compose\Events\StepFailed;
 use Compose\Events\StepStarting;
+use Compose\Exceptions\DangerousPathException;
 use Compose\Execution\ActionResult;
 use Compose\Execution\ProcessExecutor;
 use Compose\Step;
@@ -174,7 +177,7 @@ describe('Runner', function (): void {
         expect($afterRan)->toBeFalse();
     });
 
-    it('rolls back all previous steps when a later step fails', function (): void {
+    it('does not roll back previous steps by default when a later step fails', function (): void {
         ProcessExecutor::fake([
             'composer require --dev fail-pkg' => ActionResult::failure(1, 'fail'),
         ]);
@@ -184,6 +187,25 @@ describe('Runner', function (): void {
         $recipe->step('Step 2', function (Step $step): void {
             $step->composer(dev: ['fail-pkg']);
         });
+
+        $result = $recipe->run();
+
+        expect($result->successful)->toBeFalse();
+        expect($result->failedAtStep)->toBe(1);
+
+        ProcessExecutor::assertNotExecuted(['composer', 'remove', 'pkg-a']);
+    });
+
+    it('rolls back all previous steps when step uses RollbackAll strategy', function (): void {
+        ProcessExecutor::fake([
+            'composer require --dev fail-pkg' => ActionResult::failure(1, 'fail'),
+        ]);
+
+        $recipe = compose('Test Recipe');
+        $recipe->step('Step 1', fn (Step $step) => $step->composer(install: ['pkg-a']));
+        $recipe->step('Step 2', function (Step $step): void {
+            $step->composer(dev: ['fail-pkg']);
+        }, onFailure: FailureStrategy::RollbackAll);
 
         $result = $recipe->run();
 
@@ -470,6 +492,34 @@ describe('Runner auto-commit', function (): void {
         expect($result->successful)->toBeTrue();
     });
 
+    it('fires events for auto-commit actions', function (): void {
+        ProcessExecutor::fake();
+
+        $dispatcher = new EventDispatcher;
+        $events = [];
+
+        $dispatcher->listen(ActionExecuting::class, function (ActionExecuting $event) use (&$events): void {
+            $events[] = 'executing:'.$event->action->describe();
+        });
+        $dispatcher->listen(ActionCompleted::class, function (ActionCompleted $event) use (&$events): void {
+            $events[] = 'completed:'.$event->action->describe();
+        });
+
+        $recipe = compose('Test Recipe')
+            ->commit(automatically: true);
+
+        $recipe->step('Install', fn (Step $step) => $step->composer(install: ['pkg']));
+
+        $recipe->run($dispatcher);
+
+        $gitEvents = array_values(array_filter($events, fn ($e) => str_contains($e, 'git')));
+
+        expect($gitEvents)->toContain('executing:git add -A');
+        expect($gitEvents)->toContain('completed:git add -A');
+        expect(count(array_filter($gitEvents, fn ($e) => str_starts_with($e, 'executing:'))))->toBeGreaterThanOrEqual(2);
+        expect(count(array_filter($gitEvents, fn ($e) => str_starts_with($e, 'completed:'))))->toBeGreaterThanOrEqual(2);
+    });
+
     it('auto-commits after each step in a multi-step recipe', function (): void {
         $fake = ProcessExecutor::fake();
 
@@ -487,6 +537,67 @@ describe('Runner auto-commit', function (): void {
         $commitCommands = array_filter($executed, fn ($cmd) => ($cmd['command'][0] ?? '') === 'git' && ($cmd['command'][1] ?? '') === 'commit');
 
         expect($commitCommands)->toHaveCount(2);
+    });
+
+});
+
+describe('Runner fresh guard', function (): void {
+
+    afterEach(function (): void {
+        ProcessExecutor::reset();
+    });
+
+    it('throws when fresh mode targets the current working directory', function (): void {
+        ProcessExecutor::fake();
+
+        $recipe = compose('Test Recipe')
+            ->in('.', fresh: true);
+
+        $recipe->step('Install', fn (Step $step) => $step->composer(install: ['pkg']));
+
+        $recipe->run();
+    })->throws(DangerousPathException::class);
+
+    it('throws when fresh mode targets getcwd()', function (): void {
+        ProcessExecutor::fake();
+
+        $recipe = compose('Test Recipe')
+            ->in((string) getcwd(), fresh: true);
+
+        $recipe->step('Install', fn (Step $step) => $step->composer(install: ['pkg']));
+
+        $recipe->run();
+    })->throws(DangerousPathException::class);
+
+    it('throws when fresh mode has no working directory', function (): void {
+        ProcessExecutor::fake();
+
+        $recipe = compose('Test Recipe')
+            ->in(fresh: true);
+
+        $recipe->step('Install', fn (Step $step) => $step->composer(install: ['pkg']));
+
+        $recipe->run();
+    })->throws(DangerousPathException::class);
+
+    it('allows fresh mode with a valid subdirectory', function (): void {
+        ProcessExecutor::fake();
+
+        $tempDir = sys_get_temp_dir().DIRECTORY_SEPARATOR.'compose_fresh_test_'.uniqid();
+        mkdir($tempDir, 0755, true);
+
+        $recipe = compose('Test Recipe')
+            ->in($tempDir, fresh: true);
+
+        $recipe->step('Install', fn (Step $step) => $step->composer(install: ['pkg']));
+
+        $result = $recipe->run();
+
+        expect($result->successful)->toBeTrue();
+
+        if (is_dir($tempDir)) {
+            rmdir($tempDir);
+        }
     });
 
 });

@@ -8,4 +8,5 @@ enum FailureStrategy: string
     case Continue = 'continue';
     case Retry = 'retry';
     case Rollback = 'rollback';
+    case RollbackAll = 'rollback-all';
 }

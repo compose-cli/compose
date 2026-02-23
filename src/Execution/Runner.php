@@ -2,15 +2,20 @@
 
 namespace Compose\Execution;
 
+use Compose\Actions\Action;
 use Compose\Actions\Git\GitAdd;
 use Compose\Actions\Git\GitCommit;
 use Compose\Actions\Git\GitInit;
-use Compose\Compose;
 use Compose\Contracts\CommitMessageGenerator;
+use Compose\Enums\FailureStrategy;
+use Compose\Events\ActionCompleted;
+use Compose\Events\ActionExecuting;
+use Compose\Events\ActionFailed;
 use Compose\Events\EventDispatcher;
 use Compose\Events\StepCompleted;
 use Compose\Events\StepFailed;
 use Compose\Events\StepStarting;
+use Compose\Exceptions\DangerousPathException;
 use Compose\Execution\Pipes\ExecuteActions;
 use Compose\Execution\Pipes\ResolveOperations;
 use Compose\Filesystem;
@@ -28,31 +33,29 @@ class Runner
     /**
      * Execute the full recipe and return the result.
      */
-    public function run(Compose $recipe): RunResult
+    public function run(RecipeConfig $config): RunResult
     {
-        $hasBase = $recipe->getBaseRepo() !== null;
-        $baseContext = $hasBase ? $recipe->getBaseContext() : null;
-        $projectContext = $recipe->getContext();
-        $steps = $recipe->getSteps();
+        $projectContext = $config->context;
         $rollback = new RollbackManager;
         $stepResults = [];
 
-        foreach ($recipe->getBeforeCallbacks() as $callback) {
-            $callback($recipe);
+        foreach ($config->beforeCallbacks as $callback) {
+            $callback();
         }
 
-        if ($recipe->isFresh()) {
+        if ($config->fresh) {
+            $this->guardAgainstDangerousPath($projectContext->workingDirectory);
             Filesystem::deleteDirectory($projectContext->workingDirectory);
         }
 
-        if ($recipe->shouldAutoCommit() && ! $hasBase) {
+        if ($config->autoCommit && ! $config->hasBase) {
             $this->gitInit($projectContext);
         }
 
-        foreach ($steps as $i => $step) {
+        foreach ($config->steps as $i => $step) {
             $this->dispatcher->dispatch(new StepStarting($step, $i));
 
-            $context = ($hasBase && $i === 0) ? $baseContext : $projectContext;
+            $context = ($config->hasBase && $i === 0) ? $config->baseContext : $projectContext;
 
             $rollback->beginStep($step->name, $context->workingDirectory);
 
@@ -76,7 +79,9 @@ class Runner
             $stepResults[] = $stepResult;
 
             if (! $stepResult->successful) {
-                if ($rollback->hasPreviousRollbackableActions()) {
+                if ($step->failureStrategy === FailureStrategy::RollbackAll
+                    && $rollback->hasPreviousRollbackableActions()
+                ) {
                     $rollback->rollbackAllSteps($this->executor);
                 }
 
@@ -87,15 +92,15 @@ class Runner
 
             $this->dispatcher->dispatch(new StepCompleted($step, $stepResult, $i));
 
-            $isBaseCloneStep = $hasBase && $i === 0;
+            $isBaseCloneStep = $config->hasBase && $i === 0;
 
-            if ($recipe->shouldAutoCommit() && $stepResult->successful && ! $isBaseCloneStep) {
+            if ($config->autoCommit && $stepResult->successful && ! $isBaseCloneStep) {
                 $this->autoCommit($step, $context, $stepResult);
             }
         }
 
-        foreach ($recipe->getAfterCallbacks() as $callback) {
-            $callback($recipe);
+        foreach ($config->afterCallbacks as $callback) {
+            $callback();
         }
 
         return RunResult::success($stepResults);
@@ -104,15 +109,13 @@ class Runner
     /**
      * Plan the recipe without executing anything.
      */
-    public function plan(Compose $recipe): Plan
+    public function plan(RecipeConfig $config): Plan
     {
-        $hasBase = $recipe->getBaseRepo() !== null;
-        $baseContext = $hasBase ? $recipe->getBaseContext() : null;
-        $projectContext = $recipe->getContext();
+        $projectContext = $config->context;
         $stepPlans = [];
 
-        foreach ($recipe->getSteps() as $i => $step) {
-            $context = ($hasBase && $i === 0) ? $baseContext : $projectContext;
+        foreach ($config->steps as $i => $step) {
+            $context = ($config->hasBase && $i === 0) ? $config->baseContext : $projectContext;
 
             $step->resolveOperations();
 
@@ -134,9 +137,48 @@ class Runner
         }
 
         return new Plan(
-            recipeName: $recipe->getName(),
+            recipeName: $config->name,
             steps: $stepPlans,
         );
+    }
+
+    /**
+     * Prevent deletion of dangerous paths like cwd, home, or root.
+     */
+    private function guardAgainstDangerousPath(?string $path): void
+    {
+        if ($path === null || $path === '') {
+            throw new DangerousPathException(
+                'Cannot use fresh mode: no working directory specified.',
+            );
+        }
+
+        $resolved = realpath($path) ?: $path;
+        $cwd = (string) getcwd();
+
+        if ($resolved === $cwd || $resolved === '.') {
+            throw new DangerousPathException(
+                "Cannot use fresh mode: the path '{$path}' resolves to the current working directory.",
+            );
+        }
+
+        $home = $_SERVER['HOME'] ?? $_SERVER['USERPROFILE'] ?? null;
+
+        if ($home !== null && $resolved === realpath($home)) {
+            throw new DangerousPathException(
+                "Cannot use fresh mode: the path '{$path}' resolves to the home directory.",
+            );
+        }
+
+        $isRoot = $resolved === '/'
+            || $resolved === '\\'
+            || preg_match('/^[A-Z]:\\\\?$/i', $resolved);
+
+        if ($isRoot) {
+            throw new DangerousPathException(
+                "Cannot use fresh mode: the path '{$path}' resolves to a filesystem root.",
+            );
+        }
     }
 
     /**
@@ -170,18 +212,29 @@ class Runner
 
         $addAction = (new GitAdd)->withContext($context);
         $addAction->allowFailure = true;
-
-        $this->executor->execute(
-            $addAction->command()->toArray(),
-            $context->workingDirectory,
-        );
+        $this->executeAutoCommitAction($addAction, $context);
 
         $commitAction = (new GitCommit(message: $message))->withContext($context);
         $commitAction->allowFailure = true;
+        $this->executeAutoCommitAction($commitAction, $context);
+    }
 
-        $this->executor->execute(
-            $commitAction->command()->toArray(),
+    /**
+     * Execute a single auto-commit action, firing lifecycle events.
+     */
+    private function executeAutoCommitAction(Action $action, RecipeContext $context): void
+    {
+        $this->dispatcher->dispatch(new ActionExecuting($action));
+
+        $result = $this->executor->execute(
+            $action->command()->toArray(),
             $context->workingDirectory,
         );
+
+        if ($result->successful) {
+            $this->dispatcher->dispatch(new ActionCompleted($action, $result));
+        } else {
+            $this->dispatcher->dispatch(new ActionFailed($action, $result, warned: true));
+        }
     }
 }

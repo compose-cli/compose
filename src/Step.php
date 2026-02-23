@@ -28,7 +28,7 @@ class Step
         public readonly string $name,
         public readonly ?string $description = null,
         public readonly ?Closure $callback = null,
-        public ?string $message = null,
+        public readonly ?string $message = null,
         public readonly FailureStrategy $failureStrategy = FailureStrategy::Abort,
     ) {}
 

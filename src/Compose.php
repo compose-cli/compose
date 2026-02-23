@@ -11,6 +11,7 @@ use Compose\Enums\TaskType;
 use Compose\Events\EventDispatcher;
 use Compose\Execution\Plan;
 use Compose\Execution\ProcessExecutor;
+use Compose\Execution\RecipeConfig;
 use Compose\Execution\Runner;
 use Compose\Execution\RunResult;
 
@@ -197,7 +198,7 @@ class Compose
     {
         $runner = new Runner(new ProcessExecutor, $dispatcher ?? new EventDispatcher);
 
-        return $runner->run($this);
+        return $runner->run($this->toConfig());
     }
 
     /**
@@ -207,7 +208,25 @@ class Compose
     {
         $runner = new Runner(new ProcessExecutor, new EventDispatcher);
 
-        return $runner->plan($this);
+        return $runner->plan($this->toConfig());
+    }
+
+    /**
+     * Build an immutable RecipeConfig from the current state.
+     */
+    public function toConfig(): RecipeConfig
+    {
+        return new RecipeConfig(
+            name: $this->getName(),
+            context: $this->getContext(),
+            baseContext: $this->baseRepo !== null ? $this->getBaseContext() : null,
+            fresh: $this->fresh,
+            autoCommit: $this->commitAutomatically,
+            smartCommit: $this->commitUsingAI,
+            steps: $this->steps,
+            beforeCallbacks: $this->beforeCallbacks,
+            afterCallbacks: $this->afterCallbacks,
+        );
     }
 
     /**
@@ -258,7 +277,7 @@ class Compose
     }
 
     // ------------------------------------------------------------------
-    // Getters for the Runner
+    // Getters
     // ------------------------------------------------------------------
 
     public function getName(): string
@@ -271,63 +290,14 @@ class Compose
         return $this->projectName;
     }
 
-    public function getBaseRepo(): ?string
-    {
-        return $this->baseRepo;
-    }
-
-    public function getBaseBranch(): ?string
-    {
-        return $this->baseBranch;
-    }
-
     public function getTarget(): ?string
     {
         return $this->target;
     }
 
-    public function isFresh(): bool
-    {
-        return $this->fresh;
-    }
-
-    public function shouldAutoCommit(): bool
-    {
-        return $this->commitAutomatically;
-    }
-
-    public function shouldUseSmartCommit(): bool
-    {
-        return $this->commitUsingAI;
-    }
-
     public function isUsingAI(): bool
     {
         return $this->aiProvider !== null && $this->aiModel !== null;
-    }
-
-    /**
-     * @return Step[]
-     */
-    public function getSteps(): array
-    {
-        return $this->steps;
-    }
-
-    /**
-     * @return callable[]
-     */
-    public function getBeforeCallbacks(): array
-    {
-        return $this->beforeCallbacks;
-    }
-
-    /**
-     * @return callable[]
-     */
-    public function getAfterCallbacks(): array
-    {
-        return $this->afterCallbacks;
     }
 
     public function getNodeManager(): Node
