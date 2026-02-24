@@ -12,6 +12,8 @@ use Compose\Events\ActionCompleted;
 use Compose\Events\ActionExecuting;
 use Compose\Events\ActionFailed;
 use Compose\Events\EventDispatcher;
+use Compose\Events\RollbackCompleted;
+use Compose\Events\RollbackStarting;
 use Compose\Events\StepCompleted;
 use Compose\Events\StepFailed;
 use Compose\Events\StepStarting;
@@ -82,7 +84,9 @@ class Runner
                 if ($step->failureStrategy === FailureStrategy::RollbackAll
                     && $rollback->hasPreviousRollbackableActions()
                 ) {
-                    $rollback->rollbackAllSteps($this->executor);
+                    $this->dispatcher->dispatch(new RollbackStarting($step));
+                    $rollbackAllResults = $rollback->rollbackAllSteps($this->executor);
+                    $this->dispatcher->dispatch(new RollbackCompleted($step, $rollbackAllResults));
                 }
 
                 $this->dispatcher->dispatch(new StepFailed($step, $stepResult, $i));

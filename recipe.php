@@ -12,7 +12,8 @@ $composer = compose('Compose CLI', type: TaskType::NewProject)
 
 $composer->step('Install dependencies', function (Step $step): void {
     $step
-        ->composer(dev: ['laravel/telescope'], run: 'setup')
+        ->composer(run: 'setup')
+        ->composer(dev: ['laravel/telescope'])
         ->artisan(function (Artisan $artisan): void {
             $artisan
                 ->make('controller', 'TeamController')

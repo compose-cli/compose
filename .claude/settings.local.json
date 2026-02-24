@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd /c/Users/Wyatt/desktop/projects/compose && vendor/bin/pest --filter=\"fires RollbackStarting and RollbackCompleted events when rolling back all previous steps|does not produce empty tokens from multiple consecutive spaces|can be constructed without a context\" 2>&1)",
+      "Bash(cd /c/Users/Wyatt/desktop/projects/compose && php.exe vendor/bin/pest --filter=\"fires RollbackStarting and RollbackCompleted events when rolling back all previous steps|does not produce empty tokens from multiple consecutive spaces|can be constructed without a context\" 2>&1)",
+      "Bash(cd /c/Users/Wyatt/desktop/projects/compose && /c/Users/Wyatt/.config/herd/bin/php.bat vendor/bin/pest --filter=\"fires RollbackStarting and RollbackCompleted events when rolling back all previous steps|does not produce empty tokens from multiple consecutive spaces|can be constructed without a context\" 2>&1)",
+      "Bash(cd /c/Users/Wyatt/desktop/projects/compose && /c/Users/Wyatt/.config/herd/bin/php.bat vendor/bin/pest 2>&1)"
+    ]
+  }
+}

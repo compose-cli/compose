@@ -6,6 +6,8 @@ use Compose\Events\ActionCompleted;
 use Compose\Events\ActionExecuting;
 use Compose\Events\ActionFailed;
 use Compose\Events\EventDispatcher;
+use Compose\Events\RollbackCompleted;
+use Compose\Events\RollbackStarting;
 use Compose\Events\StepCompleted;
 use Compose\Events\StepFailed;
 use Compose\Events\StepStarting;
@@ -195,6 +197,33 @@ describe('Runner', function (): void {
         expect($result->failedAtStep)->toBe(1);
 
         ProcessExecutor::assertNotExecuted(['composer', 'remove', 'pkg-a']);
+    });
+
+    it('fires RollbackStarting and RollbackCompleted events when rolling back all previous steps', function (): void {
+        ProcessExecutor::fake([
+            'composer require --dev fail-pkg' => ActionResult::failure(1, 'fail'),
+        ]);
+
+        $dispatcher = new EventDispatcher;
+        $events = [];
+
+        $dispatcher->listen(RollbackStarting::class, function () use (&$events): void {
+            $events[] = 'rollback-starting';
+        });
+        $dispatcher->listen(RollbackCompleted::class, function () use (&$events): void {
+            $events[] = 'rollback-completed';
+        });
+
+        $recipe = compose('Test Recipe');
+        $recipe->step('Step 1', fn (Step $step) => $step->composer(install: ['pkg-a']));
+        $recipe->step('Step 2', function (Step $step): void {
+            $step->composer(dev: ['fail-pkg']);
+        }, onFailure: FailureStrategy::RollbackAll);
+
+        $recipe->run($dispatcher);
+
+        expect($events)->toContain('rollback-starting');
+        expect($events)->toContain('rollback-completed');
     });
 
     it('rolls back all previous steps when step uses RollbackAll strategy', function (): void {

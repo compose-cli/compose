@@ -21,7 +21,9 @@ class ArtisanAction extends Action
 
     public function command(): PendingCommand
     {
-        return $this->artisan(...explode(' ', $this->command));
+        $parts = preg_split('/\s+/', trim($this->command)) ?: [];
+
+        return $this->artisan(...$parts);
     }
 
     #[\Override]

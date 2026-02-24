@@ -26,7 +26,6 @@ class Step
     protected bool $resolved = false;
 
     public function __construct(
-        protected readonly RecipeContext $context,
         public readonly string $name,
         public readonly ?string $description = null,
         public readonly ?Closure $callback = null,

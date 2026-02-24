@@ -9,10 +9,7 @@ use Compose\Step;
 describe('Step', function (): void {
 
     it('adds git add and git commit operations when commit is called with a message', function (): void {
-        $step = new Step(
-            context: context(),
-            name: 'Test step',
-        );
+        $step = new Step(name: 'Test step');
 
         $step->commit('Initial commit');
 
@@ -25,10 +22,7 @@ describe('Step', function (): void {
     });
 
     it('adds git add and git commit with null message when commit is called without arguments', function (): void {
-        $step = new Step(
-            context: context(),
-            name: 'Test step',
-        );
+        $step = new Step(name: 'Test step');
 
         $step->commit();
 
@@ -42,7 +36,6 @@ describe('Step', function (): void {
 
     it('appends commit operations after existing operations', function (): void {
         $step = new Step(
-            context: context(),
             name: 'Test step',
             callback: function (Step $step): void {
                 $step->composer(install: ['laravel/framework']);
@@ -62,7 +55,6 @@ describe('Step', function (): void {
 
     it('supports chaining commit with other fluent methods', function (): void {
         $step = new Step(
-            context: context(),
             name: 'Test step',
             callback: function (Step $step): void {
                 $step
@@ -83,10 +75,7 @@ describe('Step', function (): void {
     });
 
     it('adds a single artisan action from a string', function (): void {
-        $step = new Step(
-            context: context(),
-            name: 'Test step',
-        );
+        $step = new Step(name: 'Test step');
 
         $step->artisan('make:model Team -mf');
 
@@ -98,10 +87,7 @@ describe('Step', function (): void {
     });
 
     it('adds multiple artisan actions from a closure', function (): void {
-        $step = new Step(
-            context: context(),
-            name: 'Test step',
-        );
+        $step = new Step(name: 'Test step');
 
         $step->artisan(fn (Artisan $a) => $a
             ->run('make:controller TeamController --api')
@@ -116,9 +102,15 @@ describe('Step', function (): void {
         expect($operations[1]->command)->toBe('make:resource TeamResource');
     });
 
+    it('can be constructed without a context', function (): void {
+        $step = new Step(name: 'Test step');
+
+        expect($step->name)->toBe('Test step');
+        expect($step->operations())->toBeEmpty();
+    });
+
     it('chains artisan with other methods', function (): void {
         $step = new Step(
-            context: context(),
             name: 'Test step',
             callback: function (Step $step): void {
                 $step

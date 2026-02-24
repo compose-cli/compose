@@ -71,4 +71,10 @@ describe('ArtisanAction', function (): void {
         expect($action->preflight()->toString())->toBe('/usr/bin/php8.3 artisan --version');
     });
 
+    it('does not produce empty tokens from multiple consecutive spaces', function (): void {
+        $action = (new ArtisanAction('migrate:fresh  --seed'))->withContext(context());
+
+        expect($action->command()->toArray())->toBe(['php', 'artisan', 'migrate:fresh', '--seed']);
+    });
+
 });

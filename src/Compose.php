@@ -120,7 +120,6 @@ class Compose
         $directory = $this->projectName;
 
         array_unshift($this->steps, new Step(
-            context: $this->getBaseContext(),
             name: 'Clone base repository',
             description: "Clone {$repo}".($branch ? " (branch: {$branch})" : '')." into {$directory}",
             callback: function (Step $step) use ($repo, $branch, $directory): void {
@@ -184,7 +183,7 @@ class Compose
 
     public function step(string $name, Closure $operations, ?string $description = null, ?string $message = null, FailureStrategy $onFailure = FailureStrategy::Abort): static
     {
-        $step = new Step($this->getContext(), $name, $description, $operations, $message, $onFailure);
+        $step = new Step($name, $description, $operations, $message, $onFailure);
 
         $this->steps[] = $step;
 
