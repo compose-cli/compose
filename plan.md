@@ -10,88 +10,9 @@ This document tracks all planned refactors, fixes, and new features for Compose,
 
 These extend the `Step` API with deterministic operations. Each is a new Action class + Step method + tests. They're listed roughly in order of implementation difficulty and user value.
 
-### 3.1, 3.2, 3.3, 3.4 tasks complete
-
-### 3.5 Config File Manipulation
-
-**Why:** Laravel config files are PHP arrays. Modifying them requires either AST manipulation or smart string operations. Dot-notation shorthand makes common cases one-liners.
-
-```php
-$step->artisan(function (Artisan $a) {
-    $a->config('permission.teams', true);
-    $a->config('app.timezone', 'America/Chicago');
-    $a->config('permission', fn (Config $c) => $c
-        ->set('teams', true)
-        ->merge('guard_names', ['web', 'api'])
-    );
-});
-```
-
-- [ ] Create `src/Actions/Config/ConfigAction.php`
-- [ ] Create `src/Builders/ConfigBuilder.php` with `set()`, `get()`, `has()`, `remove()`, `merge()`, `push()`, `comment()`
-- [ ] Create `src/Support/PhpFile/ConfigFileEditor.php` — reads/writes Laravel config files
-- [ ] Approach options: (a) regex-based for simple key-value sets, (b) Nette PHP Generator for full AST, (c) hybrid
-- [ ] Dot-notation shorthand: `config('permission.teams', true)` → find `config/permission.php`, set `teams` key
-- [ ] Add `Step::config(string $fileOrDotPath, mixed $value = null)` and `Step::config(string $file, Closure $callback)` overloads
-- [ ] Add tests for shorthand, bulk, and builder forms
-- [ ] Add tests for nested keys, arrays, and edge cases
-
----
+### 3.1, 3.2, 3.3, 3.4, 3.5 tasks complete
 
 ## Priority 4 - complete
-
-**Why:** The `modify()` method is what makes Compose more than a shell script wrapper. It lets users add traits, methods, properties, and imports to PHP classes without risking file corruption. Nette PHP Generator provides the AST manipulation engine.
-
-```php
-$step->modify('app/Models/User.php', fn (Modify $m) => $m
-    ->addTrait('Spatie\Permission\Traits\HasRoles')
-    ->addMethod('isAdmin', 'return $this->hasRole("admin");')
-    ->addProperty('defaultPermissions', ['view'], 'protected')
-    ->addToArray('fillable', ['team_id', 'avatar'])
-);
-```
-
-- [ ] Create `src/Builders/ModifyBuilder.php` with all class manipulation methods:
-  - `addTrait(string $trait)` — FQCN auto-resolves import
-  - `addImport(string $class)`
-  - `addInterface(string $interface)` — FQCN auto-resolves import
-  - `addMethod(string $name, string $body)`
-  - `addProperty(string $name, mixed $default, string $visibility)`
-  - `addConstant(string $name, mixed $value, string $visibility)`
-  - `addToArray(string $property, array $values)`
-  - `addToMethod(string $method, string $code)`
-  - `removeMethod(string $name)`
-  - `removeTrait(string $trait)`
-  - `removeImport(string $class)`
-- [ ] Create `src/Builders/JsonModifyBuilder.php` with `set()`, `merge()`, `remove()`, `push()`
-- [ ] Add text manipulation methods to `ModifyBuilder`:
-  - `replace(string $search, string $replace)`
-  - `replaceRegex(string $pattern, string $replace)`
-  - `prepend(string $contents)`
-  - `append(string $contents)`
-  - `insertAfter(string $marker, string $contents)`
-  - `insertBefore(string $marker, string $contents)`
-  - `json(Closure $callback)` — delegates to `JsonModifyBuilder`
-- [ ] Create `src/Support/PhpFile/PhpFileEditor.php` — load, manipulate, save using Nette
-- [ ] Create `src/Support/PhpFile/ClassManipulator.php` — wraps Nette operations
-- [ ] Create `src/Support/PhpFile/FileWriter.php` — PsrPrinter wrapper with formatting config
-- [ ] Create `src/Support/TextFile/TextManipulator.php` — non-PHP text operations
-- [ ] Create `src/Support/JsonFile/JsonManipulator.php` — JSON file operations
-- [ ] Create `src/Actions/Modify/ModifyAction.php` — takes file path + compiled operations
-- [ ] Create `src/Payloads/ModifyOperationPayload.php` — typed value object for each operation
-- [ ] Create `src/Enums/ModifyOperation.php` enum
-- [ ] Add `Step::modify(string $file, Closure $callback): static`
-- [ ] File type detection: `.php` → Nette AST, `.json` → JSON manipulator, everything else → text manipulator
-- [ ] FQCN auto-import resolution: when `addTrait('Spatie\Permission\Traits\HasRoles')` is called, automatically add the `use` import and use the short name for the trait declaration
-- [ ] Rollback: store original file contents before modification, restore on rollback
-- [ ] Add unit tests for `ClassManipulator` using Nette's `PhpFile::fromCode()` (no filesystem needed)
-- [ ] Add unit tests for `TextManipulator`
-- [ ] Add unit tests for `JsonManipulator`
-- [ ] Add integration tests for `ModifyAction` with `InteractsWithFilesystem`
-- [ ] Add tests for FQCN auto-import resolution
-- [ ] Add test: modifying a non-existent file throws a clear error
-
----
 
 ## Priority 5: Recipe System
 
