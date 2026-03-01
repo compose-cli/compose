@@ -10,61 +10,21 @@ This document tracks all planned refactors, fixes, and new features for Compose,
 
 These extend the `Step` API with deterministic operations. Each is a new Action class + Step method + tests. They're listed roughly in order of implementation difficulty and user value.
 
-### 3.1 and 3.2 tasks complete
-
-### 3.3 File Operations
-
-**Why:** Creating, copying, and deleting files are fundamental scaffolding operations. These don't need process execution — they're filesystem operations.
-
-```php
-$step->copy('stubs/welcome.blade.php', 'resources/views/welcome.blade.php');
-$step->append('routes/api.php', "\nRoute::apiResource('teams', TeamController::class);");
-```
-
-- [ ] Create `src/Actions/File/CopyFileAction.php`
-- [ ] Create `src/Actions/File/AppendFileAction.php`
-- [ ] Add `Step::copy()`, `Step::append()` methods
-- [ ] Resolve: paths should be relative to working directory. Absolute paths should be rejected or handled carefully.
-
-### 3.4 Environment File Manipulation
-
-**Why:** `.env` files are a core part of every Laravel project setup. The API supports both bulk array and detailed builder forms.
-
-```php
-// Bulk
-$step->env(['APP_NAME' => 'My App', 'CACHE_DRIVER' => 'redis']);
-
-// Builder
-$step->env(fn (Env $env) => $env
-    ->set('APP_NAME', 'My App')
-    ->remove('APP_EXAMPLE')
-    ->comment('REDIS_HOST')
-    ->section('# Permissions', ['TEAMS' => 'true'])
-);
-```
-
-- [ ] Create `src/Actions/Env/EnvAction.php` — takes an array of operations
-- [ ] Create `src/Builders/EnvBuilder.php` with `set()`, `get()`, `has()`, `remove()`, `comment()`, `uncomment()`, `merge()`, `replace()`, `after()`, `section()`
-- [ ] Create `src/Support/TextFile/EnvFileParser.php` — reads/writes `.env` files
-- [ ] This is a filesystem action, not a process action (same consideration as 3.3)
-- [ ] Add `Step::env(array|Closure $values): static`
-- [ ] When array: bulk `set()` for each key-value pair
-- [ ] When Closure: receive `EnvBuilder`, compile to operations
-- [ ] Rollback: store original `.env` contents, restore on rollback
-- [ ] Add tests for each builder method
-- [ ] Add tests for `.env` file parsing edge cases (comments, empty lines, quoted values, multiline)
+### 3.1, 3.2, 3.3, 3.4 tasks complete
 
 ### 3.5 Config File Manipulation
 
 **Why:** Laravel config files are PHP arrays. Modifying them requires either AST manipulation or smart string operations. Dot-notation shorthand makes common cases one-liners.
 
 ```php
-$step->config('permission.teams', true);
-$step->config('app.timezone', 'America/Chicago');
-$step->config('permission', fn (Config $c) => $c
-    ->set('teams', true)
-    ->merge('guard_names', ['web', 'api'])
-);
+$step->artisan(function (Artisan $a) {
+    $a->config('permission.teams', true);
+    $a->config('app.timezone', 'America/Chicago');
+    $a->config('permission', fn (Config $c) => $c
+        ->set('teams', true)
+        ->merge('guard_names', ['web', 'api'])
+    );
+});
 ```
 
 - [ ] Create `src/Actions/Config/ConfigAction.php`
@@ -78,11 +38,7 @@ $step->config('permission', fn (Config $c) => $c
 
 ---
 
-## Priority 4: Modify — The Core Feature
-
-This is the differentiating feature of Compose. It uses Nette PHP Generator to perform AST-safe modifications to PHP classes.
-
-### 4.1 Modify Builder & Nette Integration
+## Priority 4 - complete
 
 **Why:** The `modify()` method is what makes Compose more than a shell script wrapper. It lets users add traits, methods, properties, and imports to PHP classes without risking file corruption. Nette PHP Generator provides the AST manipulation engine.
 

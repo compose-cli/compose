@@ -1,6 +1,7 @@
 <?php
 
 use Compose\Actions\Artisan\ArtisanAction;
+use Compose\Actions\Env\EnvAction;
 use Compose\Actions\File\AppendFile;
 use Compose\Actions\File\CopyFile;
 use Compose\Actions\File\CreateFile;
@@ -10,6 +11,7 @@ use Compose\Actions\Git\GitAdd;
 use Compose\Actions\Git\GitCommit;
 use Compose\Actions\Sink;
 use Compose\Builders\Artisan;
+use Compose\Builders\EnvBuilder;
 use Compose\Step;
 
 describe('Step', function (): void {
@@ -221,6 +223,60 @@ describe('Step', function (): void {
 
         expect($step->name)->toBe('Test step');
         expect($step->operations())->toBeEmpty();
+    });
+
+    // -------------------------------------------------------------------
+    // Env Action Wiring
+    // -------------------------------------------------------------------
+
+    it('queues an EnvAction from env() with an array', function (): void {
+        $step = new Step(name: 'Test step');
+
+        $step->env(['APP_NAME' => 'My App', 'APP_ENV' => 'production']);
+
+        $operations = $step->operations();
+
+        expect($operations)->toHaveCount(1);
+        expect($operations[0])->toBeInstanceOf(EnvAction::class);
+        expect($operations[0]->path)->toBe('.env');
+        expect($operations[0]->operations)->toHaveCount(2);
+    });
+
+    it('queues an EnvAction from env() with a closure', function (): void {
+        $step = new Step(name: 'Test step');
+
+        $step->env(fn (EnvBuilder $env) => $env
+            ->set('APP_NAME', 'My App')
+            ->remove('APP_EXAMPLE')
+        );
+
+        $operations = $step->operations();
+
+        expect($operations)->toHaveCount(1);
+        expect($operations[0])->toBeInstanceOf(EnvAction::class);
+        expect($operations[0]->operations)->toHaveCount(2);
+    });
+
+    it('passes a custom path to EnvAction', function (): void {
+        $step = new Step(name: 'Test step');
+
+        $step->env(['KEY' => 'value'], path: '.env.example');
+
+        expect($step->operations()[0]->path)->toBe('.env.example');
+    });
+
+    it('chains env with other methods', function (): void {
+        $step = new Step(name: 'Test step');
+
+        $step
+            ->create('file.txt', 'hello')
+            ->env(['APP_NAME' => 'My App'])
+            ->delete('file.txt');
+
+        expect($step->operations())->toHaveCount(3);
+        expect($step->operations()[0])->toBeInstanceOf(CreateFile::class);
+        expect($step->operations()[1])->toBeInstanceOf(EnvAction::class);
+        expect($step->operations()[2])->toBeInstanceOf(DeleteFile::class);
     });
 
     it('chains artisan with other methods', function (): void {

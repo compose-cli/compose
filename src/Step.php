@@ -10,6 +10,7 @@ use Compose\Actions\Artisan\ArtisanAction;
 use Compose\Actions\Composer\ComposerInstall;
 use Compose\Actions\Composer\ComposerRemove;
 use Compose\Actions\Composer\ComposerRun;
+use Compose\Actions\Env\EnvAction;
 use Compose\Actions\File\AppendFile;
 use Compose\Actions\File\CopyFile;
 use Compose\Actions\File\CreateFile;
@@ -17,11 +18,14 @@ use Compose\Actions\File\DeleteFile;
 use Compose\Actions\File\ReadFile;
 use Compose\Actions\Git\GitAdd;
 use Compose\Actions\Git\GitCommit;
+use Compose\Actions\Modify\ModifyAction;
 use Compose\Actions\Node\NodeInstall;
 use Compose\Actions\Node\NodeRemove;
 use Compose\Actions\Node\NodeRun;
 use Compose\Actions\Sink;
 use Compose\Builders\Artisan;
+use Compose\Builders\EnvBuilder;
+use Compose\Builders\ModifyBuilder;
 use Compose\Enums\FailureStrategy;
 
 class Step
@@ -240,6 +244,46 @@ class Step
     public function delete(string ...$paths): static
     {
         $this->operations[] = new DeleteFile(...$paths);
+
+        return $this;
+    }
+
+    /**
+     * Manipulate an environment file.
+     *
+     * When passed an array, sets each key-value pair (bulk mode).
+     * When passed a closure, receives an EnvBuilder for fine-grained
+     * operations (set, remove, comment, uncomment, section, when).
+     */
+    public function env(array|Closure $values, string $path = '.env'): static
+    {
+        $builder = new EnvBuilder;
+
+        if (is_array($values)) {
+            $builder->merge($values);
+        } else {
+            $values($builder);
+        }
+
+        $this->operations[] = new EnvAction(path: $path, operations: $builder->operations());
+
+        return $this;
+    }
+
+    /**
+     * Modify an existing file.
+     *
+     * Uses Nette PHP Generator for AST-safe class manipulation on .php files,
+     * JsonManipulator for .json files, and TextManipulator for everything else.
+     *
+     * @param  Closure(ModifyBuilder): void  $callback
+     */
+    public function modify(string $file, Closure $callback): static
+    {
+        $builder = new ModifyBuilder;
+        $callback($builder);
+
+        $this->operations[] = new ModifyAction(path: $file, operations: $builder->operations());
 
         return $this;
     }
