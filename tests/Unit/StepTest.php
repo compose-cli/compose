@@ -1,8 +1,14 @@
 <?php
 
 use Compose\Actions\Artisan\ArtisanAction;
+use Compose\Actions\File\AppendFile;
+use Compose\Actions\File\CopyFile;
+use Compose\Actions\File\CreateFile;
+use Compose\Actions\File\DeleteFile;
+use Compose\Actions\File\ReadFile;
 use Compose\Actions\Git\GitAdd;
 use Compose\Actions\Git\GitCommit;
+use Compose\Actions\Sink;
 use Compose\Builders\Artisan;
 use Compose\Step;
 

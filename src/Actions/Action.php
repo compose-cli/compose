@@ -4,6 +4,7 @@ namespace Compose\Actions;
 
 use Compose\Contracts\Operation;
 use Compose\Enums\Node;
+use Compose\Execution\ActionResult;
 use Compose\RecipeContext;
 use RuntimeException;
 
@@ -21,7 +22,31 @@ abstract class Action
     /**
      * Build the command to execute.
      */
-    abstract public function command(): PendingCommand;
+    public function command(): ?PendingCommand
+    {
+        return null;
+    }
+
+    /**
+     * Execute this action directly (not via shell).
+     *
+     * Override this for actions that perform PHP-native operations
+     * (file I/O, HTTP requests, etc.) instead of shelling out.
+     *
+     * Return null to fall through to command-based execution.
+     */
+    public function execute(RecipeContext $context): ?ActionResult
+    {
+        return null;
+    }
+
+    /**
+     * Whether this action uses direct execution rather than a shell command.
+     */
+    public function isDirect(): bool
+    {
+        return $this->command() === null;
+    }
 
     /**
      * Build the command to roll back this action.
@@ -34,11 +59,30 @@ abstract class Action
     }
 
     /**
+     * Roll back this action directly (not via shell).
+     *
+     * Override this for direct actions that need PHP-native rollback.
+     * Return null to fall through to command-based rollback.
+     */
+    public function rollbackDirect(RecipeContext $context): ?ActionResult
+    {
+        return null;
+    }
+
+    /**
      * Whether this action can be rolled back.
      */
     public function canBeRolledBack(): bool
     {
-        return $this->rollback() !== null;
+        return $this->rollback() !== null || $this->canRollbackDirect();
+    }
+
+    /**
+     * Whether this action supports direct rollback.
+     */
+    public function canRollbackDirect(): bool
+    {
+        return false;
     }
 
     /**
@@ -56,7 +100,9 @@ abstract class Action
      */
     public function describe(): string
     {
-        return $this->command()->toString();
+        $command = $this->command();
+
+        return $command !== null ? $command->toString() : static::class;
     }
 
     /**
@@ -80,19 +126,19 @@ abstract class Action
     }
 
     /**
-     * Create a pending command for the composer binary.
-     */
-    protected function composer(string ...$subcommand): PendingCommand
-    {
-        return new PendingCommand($this->context()->composerBinary, ...$subcommand);
-    }
-
-    /**
      * Get the configured node package manager.
      */
     protected function manager(): Node
     {
         return $this->context()->nodeManager;
+    }
+
+    /**
+     * Create a pending command for the composer binary.
+     */
+    protected function composer(string ...$subcommand): PendingCommand
+    {
+        return new PendingCommand($this->context()->composerBinary, ...$subcommand);
     }
 
     /**
@@ -117,5 +163,21 @@ abstract class Action
     protected function artisan(string ...$subcommand): PendingCommand
     {
         return new PendingCommand($this->context()->phpBinary, 'artisan', ...$subcommand);
+    }
+
+    protected function resolvePath(string $path): string
+    {
+        $cwd = $this->context()->workingDirectory;
+
+        if ($cwd === null) {
+            return $path;
+        }
+
+        // Already absolute
+        if (str_starts_with($path, '/') || preg_match('/^[A-Z]:\\\\/i', $path)) {
+            return $path;
+        }
+
+        return rtrim($cwd, '/\\').DIRECTORY_SEPARATOR.$path;
     }
 }

@@ -17,24 +17,13 @@ These extend the `Step` API with deterministic operations. Each is a new Action 
 **Why:** Creating, copying, and deleting files are fundamental scaffolding operations. These don't need process execution — they're filesystem operations.
 
 ```php
-$step->create('config/hub.php', $contents);
 $step->copy('stubs/welcome.blade.php', 'resources/views/welcome.blade.php');
 $step->append('routes/api.php', "\nRoute::apiResource('teams', TeamController::class);");
-$step->delete('.styleci.yml', 'webpack.mix.js');
 ```
 
-- [ ] Create `src/Actions/File/CreateFileAction.php`
 - [ ] Create `src/Actions/File/CopyFileAction.php`
-- [ ] Create `src/Actions/File/DeleteFileAction.php`
 - [ ] Create `src/Actions/File/AppendFileAction.php`
-- [ ] Create `Compose\Enums\FileOperation` enum (Create, Copy, Delete, Append)
-- [ ] These actions should NOT use `ProcessExecutor` — they're direct filesystem operations
-- [ ] The `Action` interface may need to evolve: currently `command()` returns a `PendingCommand`, but file operations don't have commands. Options:
-  - Add an `execute(ExecutionContext)` method to Action (preferred — aligns with the architecture we designed)
-  - Or make file actions return a `PendingCommand` that wraps `cp`, `rm`, etc. (simpler but less clean)
-- [ ] Rollback: `CreateFileAction` → delete the file. `DeleteFileAction` → cannot rollback (or stash contents). `CopyFileAction` → delete the copy. `AppendFileAction` → store original content, restore on rollback.
-- [ ] Add `Step::create()`, `Step::copy()`, `Step::delete()`, `Step::append()` methods
-- [ ] Add tests with `InteractsWithFilesystem` trait for actual file operations
+- [ ] Add `Step::copy()`, `Step::append()` methods
 - [ ] Resolve: paths should be relative to working directory. Absolute paths should be rejected or handled carefully.
 
 ### 3.4 Environment File Manipulation

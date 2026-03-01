@@ -1,7 +1,5 @@
 <?php
 
-use Compose\Builders\Artisan;
-use Compose\Enums\FailureStrategy;
 use Compose\Enums\TaskType;
 use Compose\Step;
 
@@ -10,24 +8,48 @@ $composer = compose('Compose CLI', type: TaskType::NewProject)
     ->base(repo: 'https://github.com/laravel/laravel.git')
     ->commit(automatically: true, smart: true);
 
-$composer->step('Install dependencies', function (Step $step): void {
+// Install Dev Dependencies
+$composer->step('Install Dev Dependencies', function (Step $step): void {
     $step
         ->composer(run: 'setup')
-        ->composer(dev: ['laravel/telescope'])
-        ->artisan(function (Artisan $artisan): void {
-            $artisan
-                ->make('controller', 'TeamController')
-                ->make('resource', 'TeamResource')
-                ->migrate(seed: true);
-        });
+        ->composer(
+            dev: [
+                'rector/rector',
+                'laravel/pint',
+                'pestphp/pest',
+                'phpstan/phpstan',
+            ]
+        );
 });
 
-$composer->step('Setup frontend', function (Step $step): void {
-    $step->node(install: ['vue'], dev: ['vite', '@vitejs/plugin-vue']);
-}, onFailure: FailureStrategy::Continue);
+// setup authentication
+$composer->step('Setup authentication', function (Step $step): void {
+    $step
+        ->composer(
+            install: [
+                'laravel/fortify',
+            ],
+            run: 'vendor:publish --provider="Laravel\Fortify\FortifyServiceProvider"'
+        )
+        ->artisan('migrate');
+});
 
-$composer->step('Swap Tailwind for UnoCSS', function (Step $step): void {
-    $step->node(remove: ['tailwindcss', 'postcss', 'autoprefixer'], dev: ['unocss'], allowFailure: true);
+$composer->step('CI & Config', function (Step $step): void {
+    $step
+        ->sink(
+            from: 'github:laravel/laravel@11.x:.github/workflows/tests.yml',
+            to: '.github/workflows/tests.yml',
+        )
+        ->sink(
+            from: 'github:laravel/laravel@11.x:phpunit.xml.dist',
+        )
+        ->sink(
+            from: 'github:your-org/templates@main:.github/workflows/deploy.yml',
+            to: '.github/workflows/deploy.yml',
+        )
+        ->sink(
+            from: 'github:your-org/templates@main:.editorconfig',
+        );
 });
 
 $composer->step('Run build', function (Step $step): void {

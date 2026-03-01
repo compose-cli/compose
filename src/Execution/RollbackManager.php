@@ -61,20 +61,8 @@ class RollbackManager
 
         $cwd = $this->workingDirectories[$this->currentStep] ?? $context->workingDirectory;
         $actions = array_reverse($this->stacks[$this->currentStep] ?? []);
-        $results = [];
 
-        foreach ($actions as $action) {
-            $rollbackCommand = $action->rollback();
-
-            if ($rollbackCommand === null) {
-                continue;
-            }
-
-            $results[] = $executor->execute(
-                $rollbackCommand->toArray(),
-                $cwd,
-            );
-        }
+        $results = $this->rollbackActions($actions, $context, $executor, $cwd);
 
         $this->stacks[$this->currentStep] = [];
 
@@ -89,7 +77,7 @@ class RollbackManager
      *
      * @return ActionResult[]
      */
-    public function rollbackAllSteps(ProcessExecutor $executor): array
+    public function rollbackAllSteps(RecipeContext $context, ProcessExecutor $executor): array
     {
         $stepNames = array_keys($this->stacks);
         $results = [];
@@ -102,20 +90,47 @@ class RollbackManager
             $cwd = $this->workingDirectories[$stepName] ?? null;
             $actions = array_reverse($this->stacks[$stepName] ?? []);
 
-            foreach ($actions as $action) {
-                $rollbackCommand = $action->rollback();
-
-                if ($rollbackCommand === null) {
-                    continue;
-                }
-
-                $results[] = $executor->execute(
-                    $rollbackCommand->toArray(),
-                    $cwd,
-                );
-            }
+            $results = [...$results, ...$this->rollbackActions($actions, $context, $executor, $cwd)];
 
             $this->stacks[$stepName] = [];
+        }
+
+        return $results;
+    }
+
+    /**
+     * Roll back a list of actions, handling both command-based and direct rollback.
+     *
+     * @param  Action[]  $actions
+     * @return ActionResult[]
+     */
+    protected function rollbackActions(
+        array $actions,
+        RecipeContext $context,
+        ProcessExecutor $executor,
+        ?string $cwd,
+    ): array {
+        $results = [];
+
+        foreach ($actions as $action) {
+            // Try direct rollback first
+            if ($action->canRollbackDirect()) {
+                $results[] = $action->rollbackDirect($context);
+
+                continue;
+            }
+
+            // Fall through to command-based rollback
+            $rollbackCommand = $action->rollback();
+
+            if ($rollbackCommand === null) {
+                continue;
+            }
+
+            $results[] = $executor->execute(
+                $rollbackCommand->toArray(),
+                $cwd,
+            );
         }
 
         return $results;

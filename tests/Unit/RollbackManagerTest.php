@@ -116,7 +116,7 @@ describe('RollbackManager', function (): void {
 
         $rollback->beginStep('step-3');
 
-        $results = $rollback->rollbackAllSteps($executor);
+        $results = $rollback->rollbackAllSteps($ctx, $executor);
 
         expect($results)->toHaveCount(2);
 
@@ -139,7 +139,7 @@ describe('RollbackManager', function (): void {
 
         $rollback->beginStep('failing-step', '/tmp/target/project');
 
-        $rollback->rollbackAllSteps($executor);
+        $rollback->rollbackAllSteps($ctx, $executor);
 
         $executed = $fake->executed();
         expect($executed[0]['cwd'])->toBe('/tmp/target/project');

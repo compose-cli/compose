@@ -8,11 +8,17 @@ use Compose\Actions\Artisan\ArtisanAction;
 use Compose\Actions\Composer\ComposerInstall;
 use Compose\Actions\Composer\ComposerRemove;
 use Compose\Actions\Composer\ComposerRun;
+use Compose\Actions\File\AppendFile;
+use Compose\Actions\File\CopyFile;
+use Compose\Actions\File\CreateFile;
+use Compose\Actions\File\DeleteFile;
+use Compose\Actions\File\ReadFile;
 use Compose\Actions\Git\GitAdd;
 use Compose\Actions\Git\GitCommit;
 use Compose\Actions\Node\NodeInstall;
 use Compose\Actions\Node\NodeRemove;
 use Compose\Actions\Node\NodeRun;
+use Compose\Actions\Sink;
 use Compose\Builders\Artisan;
 use Compose\Enums\FailureStrategy;
 
@@ -138,6 +144,100 @@ class Step
         foreach ($builder->actions() as $action) {
             $this->operations[] = $action;
         }
+
+        return $this;
+    }
+
+    /**
+     * Fetch a remote file and write it to the project.
+     *
+     * Supports raw URLs and GitHub shorthand:
+     *   github:owner/repo@ref:path/to/file
+     *   github:owner/repo:path/to/file (ref defaults to main)
+     *
+     * When $to is null, the target path is derived from the source.
+     */
+    public function sink(string $from, ?string $to = null, bool $force = true): static
+    {
+        $this->operations[] = new Sink($from, $to, $force);
+
+        return $this;
+    }
+
+    /**
+     * Create a file with the given contents.
+     *
+     * The path is relative to the working directory. Parent directories
+     * are created automatically. Existing files are overwritten unless
+     * force is set to false.
+     */
+    public function create(string $path, string $contents, bool $overwrite = true): static
+    {
+        $this->operations[] = new CreateFile(
+            path: $path,
+            contents: $contents,
+            overwrite: $overwrite,
+        );
+
+        return $this;
+    }
+
+    /**
+     * Read a file's contents.
+     *
+     * The file contents are captured in the ActionResult output,
+     * making them available to downstream actions and AI context.
+     */
+    public function read(string $path): static
+    {
+        $this->operations[] = new ReadFile(path: $path);
+
+        return $this;
+    }
+
+    /**
+     * Copy a file from one path to another.
+     *
+     * Both paths are relative to the working directory. Parent directories
+     * for the target are created automatically. Existing targets are
+     * overwritten unless overwrite is set to false.
+     */
+    public function copy(string $from, string $to, bool $overwrite = true): static
+    {
+        $this->operations[] = new CopyFile(
+            from: $from,
+            to: $to,
+            overwrite: $overwrite,
+        );
+
+        return $this;
+    }
+
+    /**
+     * Append content to an existing file.
+     *
+     * Fails if the target file does not exist. The appended bytes
+     * are tracked for rollback via truncation.
+     */
+    public function append(string $path, string $contents): static
+    {
+        $this->operations[] = new AppendFile(
+            path: $path,
+            contents: $contents,
+        );
+
+        return $this;
+    }
+
+    /**
+     * Delete one or more files or directories.
+     *
+     * Supports glob patterns. Directories are deleted recursively.
+     * Missing files are silently skipped.
+     */
+    public function delete(string ...$paths): static
+    {
+        $this->operations[] = new DeleteFile(...$paths);
 
         return $this;
     }

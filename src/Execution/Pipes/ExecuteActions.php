@@ -3,6 +3,7 @@
 namespace Compose\Execution\Pipes;
 
 use Closure;
+use Compose\Actions\Action;
 use Compose\Events\ActionCompleted;
 use Compose\Events\ActionExecuting;
 use Compose\Events\ActionFailed;
@@ -42,10 +43,7 @@ class ExecuteActions
 
             $context->dispatcher->dispatch(new ActionExecuting($action));
 
-            $result = $context->executor->execute(
-                $action->command()->toArray(),
-                $context->recipeContext->workingDirectory,
-            );
+            $result = $this->executeAction($action, $context);
 
             if (! $result->successful && $context->step->shouldWarnOnFailure($action)) {
                 $actionResults[] = new ActionResult(
@@ -108,6 +106,44 @@ class ExecuteActions
         );
 
         return $next($context);
+    }
+
+    /**
+     * Execute an action directly or via command.
+     */
+    protected function executeAction(Action $action, StepContext $context): ActionResult
+    {
+        $startTime = microtime(true);
+
+        // Try direct execution first (file operations, HTTP fetches, etc.)
+        $directResult = $action->execute($context->recipeContext);
+
+        if ($directResult !== null) {
+            return new ActionResult(
+                command: $directResult->command,
+                exitCode: $directResult->exitCode,
+                output: $directResult->output,
+                errorOutput: $directResult->errorOutput,
+                successful: $directResult->successful,
+                duration: microtime(true) - $startTime,
+                action: $action,
+            );
+        }
+
+        // Fall through to command-based execution
+        $command = $action->command();
+
+        if ($command === null) {
+            return ActionResult::failure(
+                errorOutput: 'Action has neither execute() nor command() implementation:'.$action::class,
+                command: [],
+            );
+        }
+
+        return $context->executor->execute(
+            $command->toArray(),
+            $context->recipeContext->workingDirectory,
+        );
     }
 
     /**

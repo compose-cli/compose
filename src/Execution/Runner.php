@@ -85,7 +85,7 @@ class Runner
                     && $rollback->hasPreviousRollbackableActions()
                 ) {
                     $this->dispatcher->dispatch(new RollbackStarting($step));
-                    $rollbackAllResults = $rollback->rollbackAllSteps($this->executor);
+                    $rollbackAllResults = $rollback->rollbackAllSteps($context, $this->executor);
                     $this->dispatcher->dispatch(new RollbackCompleted($step, $rollbackAllResults));
                 }
 
