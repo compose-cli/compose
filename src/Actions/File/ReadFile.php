@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Compose\Actions\File;
 
 use Compose\Actions\Action;
@@ -13,11 +15,13 @@ class ReadFile extends Action
         public readonly string $path,
     ) {}
 
+    #[\Override]
     public function type(): FileOperation
     {
         return FileOperation::Read;
     }
 
+    #[\Override]
     public function execute(RecipeContext $context): ActionResult
     {
         $fullPath = $this->resolvePath($this->path);
@@ -51,6 +55,7 @@ class ReadFile extends Action
         );
     }
 
+    #[\Override]
     public function describe(): string
     {
         return "read {$this->path}";

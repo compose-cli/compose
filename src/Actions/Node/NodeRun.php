@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Compose\Actions\Node;
 
 use Compose\Actions\Action;
@@ -14,11 +16,13 @@ class NodeRun extends Action
         public readonly array|string $args = [],
     ) {}
 
+    #[\Override]
     public function type(): PackageOperation
     {
         return PackageOperation::Run;
     }
 
+    #[\Override]
     public function command(): PendingCommand
     {
         $usesRun = match ($this->manager()) {

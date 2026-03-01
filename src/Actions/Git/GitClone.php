@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Compose\Actions\Git;
 
 use Compose\Actions\Action;
@@ -14,11 +16,13 @@ class GitClone extends Action
         public readonly ?string $directory = null,
     ) {}
 
+    #[\Override]
     public function type(): GitOperation
     {
         return GitOperation::Clone;
     }
 
+    #[\Override]
     public function command(): PendingCommand
     {
         $cmd = $this->git('clone')
@@ -43,6 +47,7 @@ class GitClone extends Action
         return $this->directory ?? basename($this->repo, '.git');
     }
 
+    #[\Override]
     public function rollback(): PendingCommand
     {
         return PHP_OS_FAMILY === 'Windows'

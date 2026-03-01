@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Compose\Actions\File;
 
 use Compose\Actions\Action;
@@ -19,11 +21,13 @@ class CopyFile extends Action
         public readonly bool $overwrite = true,
     ) {}
 
+    #[\Override]
     public function type(): FileOperation
     {
         return FileOperation::Copy;
     }
 
+    #[\Override]
     public function execute(RecipeContext $context): ActionResult
     {
         $sourcePath = $this->resolvePath($this->from);
@@ -71,6 +75,7 @@ class CopyFile extends Action
         );
     }
 
+    #[\Override]
     public function describe(): string
     {
         return "copy {$this->from} → {$this->to}";
@@ -82,6 +87,7 @@ class CopyFile extends Action
         return true;
     }
 
+    #[\Override]
     public function rollbackDirect(RecipeContext $context): ActionResult
     {
         $targetPath = $this->resolvePath($this->to);

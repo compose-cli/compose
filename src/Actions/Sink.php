@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Compose\Actions;
 
 use Compose\Contracts\Operation;
@@ -17,11 +19,13 @@ class Sink extends Action
         public readonly bool $force = true,
     ) {}
 
+    #[\Override]
     public function type(): Operation
     {
         return FileOperation::Sink;
     }
 
+    #[\Override]
     public function command(): PendingCommand
     {
         $url = $this->resolveUrl();
@@ -33,6 +37,7 @@ class Sink extends Action
             ->argument($url);
     }
 
+    #[\Override]
     public function rollback(): ?PendingCommand
     {
         $target = $this->resolveTarget();

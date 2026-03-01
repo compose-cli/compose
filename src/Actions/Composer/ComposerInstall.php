@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Compose\Actions\Composer;
 
 use Compose\Actions\PendingCommand;
@@ -7,11 +9,13 @@ use Compose\Enums\PackageOperation;
 
 class ComposerInstall extends ComposerAction
 {
+    #[\Override]
     public function type(): PackageOperation
     {
         return $this->dev ? PackageOperation::InstallDev : PackageOperation::Install;
     }
 
+    #[\Override]
     public function command(): PendingCommand
     {
         return $this->composer('require')
@@ -19,6 +23,7 @@ class ComposerInstall extends ComposerAction
             ->argument(...$this->packageList());
     }
 
+    #[\Override]
     public function rollback(): PendingCommand
     {
         return $this->composer('remove')

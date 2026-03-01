@@ -56,4 +56,11 @@ $composer->step('Run build', function (Step $step): void {
     $step->node(run: 'build', allowFailure: true);
 });
 
+$composer->step('Check file methods', function (Step $step): void {
+    $step
+        ->create('src/Actions/File/CreateFileAction.php', 'Test')
+        ->copy('src/Actions/File/CopyFileAction.php', 'Test')
+        ->append('src/Actions/File/AppendFileAction.php', 'Test');
+});
+
 return $composer;

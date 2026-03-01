@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Compose\Actions\Git;
 
 use Compose\Actions\Action;
@@ -12,11 +14,13 @@ class GitCommit extends Action
         public readonly ?string $message = null,
     ) {}
 
+    #[\Override]
     public function type(): GitOperation
     {
         return GitOperation::Commit;
     }
 
+    #[\Override]
     public function command(): PendingCommand
     {
         return $this->git('commit')

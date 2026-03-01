@@ -14,11 +14,13 @@ class ArtisanAction extends Action
         public readonly string $command,
     ) {}
 
+    #[\Override]
     public function type(): ArtisanOperation
     {
         return ArtisanOperation::Run;
     }
 
+    #[\Override]
     public function command(): PendingCommand
     {
         $parts = preg_split('/\s+/', trim($this->command)) ?: [];

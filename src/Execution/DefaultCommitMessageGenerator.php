@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Compose\Execution;
 
 use Compose\Contracts\CommitMessageGenerator;
@@ -12,6 +14,7 @@ class DefaultCommitMessageGenerator implements CommitMessageGenerator
      *
      * @param  ActionResult[]  $actionResults
      */
+    #[\Override]
     public function generate(Step $step, array $actionResults): string
     {
         return $step->message ?? "compose: {$step->name}";

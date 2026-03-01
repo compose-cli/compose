@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Compose\Actions\File;
 
 use Compose\Actions\Action;
@@ -20,11 +22,13 @@ class DeleteFile extends Action
         $this->paths = $paths;
     }
 
+    #[\Override]
     public function type(): FileOperation
     {
         return FileOperation::Delete;
     }
 
+    #[\Override]
     public function execute(RecipeContext $context): ActionResult
     {
         $deleted = [];
@@ -69,6 +73,7 @@ class DeleteFile extends Action
         );
     }
 
+    #[\Override]
     public function describe(): string
     {
         return 'delete '.implode(', ', $this->paths);

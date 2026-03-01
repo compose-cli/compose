@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Compose\Actions\Composer;
 
 use Compose\Actions\Action;
@@ -13,11 +15,13 @@ class ComposerRun extends Action
         public readonly array|string $args = [],
     ) {}
 
+    #[\Override]
     public function type(): PackageOperation
     {
         return PackageOperation::Run;
     }
 
+    #[\Override]
     public function command(): PendingCommand
     {
         $cmd = $this->composer('run', $this->script);

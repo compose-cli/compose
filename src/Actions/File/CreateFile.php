@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Compose\Actions\File;
 
 use Compose\Actions\Action;
@@ -19,11 +21,13 @@ class CreateFile extends Action
         public readonly bool $overwrite = true,
     ) {}
 
+    #[\Override]
     public function type(): FileOperation
     {
         return FileOperation::Create;
     }
 
+    #[\Override]
     public function execute(RecipeContext $context): ActionResult
     {
         $fullPath = $this->resolvePath($this->path);
@@ -63,6 +67,7 @@ class CreateFile extends Action
         );
     }
 
+    #[\Override]
     public function describe(): string
     {
         $size = strlen($this->contents);
@@ -77,6 +82,7 @@ class CreateFile extends Action
         return true;
     }
 
+    #[\Override]
     public function rollbackDirect(RecipeContext $context): ActionResult
     {
         $fullPath = $this->resolvePath($this->path);

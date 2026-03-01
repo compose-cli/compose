@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Compose\Actions\File;
 
 use Compose\Actions\Action;
@@ -16,11 +18,13 @@ class AppendFile extends Action
         public readonly string $contents,
     ) {}
 
+    #[\Override]
     public function type(): FileOperation
     {
         return FileOperation::Append;
     }
 
+    #[\Override]
     public function execute(RecipeContext $context): ActionResult
     {
         $fullPath = $this->resolvePath($this->path);
@@ -49,6 +53,7 @@ class AppendFile extends Action
         );
     }
 
+    #[\Override]
     public function describe(): string
     {
         $size = strlen($this->contents);
@@ -62,6 +67,7 @@ class AppendFile extends Action
         return true;
     }
 
+    #[\Override]
     public function rollbackDirect(RecipeContext $context): ActionResult
     {
         if ($this->appendedBytes === null || $this->appendedBytes === 0) {

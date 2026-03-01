@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Compose\Actions\Node;
 
 use Compose\Actions\PendingCommand;
@@ -7,11 +9,13 @@ use Compose\Enums\PackageOperation;
 
 class NodeRemove extends NodeAction
 {
+    #[\Override]
     public function type(): PackageOperation
     {
         return $this->dev ? PackageOperation::RemoveDev : PackageOperation::Remove;
     }
 
+    #[\Override]
     public function command(): PendingCommand
     {
         return $this->node($this->removeVerb())
@@ -19,6 +23,7 @@ class NodeRemove extends NodeAction
             ->argument(...$this->packageList());
     }
 
+    #[\Override]
     public function rollback(): PendingCommand
     {
         return $this->node($this->installVerb())
