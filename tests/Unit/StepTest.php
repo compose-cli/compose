@@ -108,6 +108,114 @@ describe('Step', function (): void {
         expect($operations[1]->command)->toBe('make:resource TeamResource');
     });
 
+    // -------------------------------------------------------------------
+    // File Action Wiring
+    // -------------------------------------------------------------------
+
+    it('queues a CreateFile action from create()', function (): void {
+        $step = new Step(name: 'Test step');
+
+        $step->create('config/app.php', '<?php return [];');
+
+        $operations = $step->operations();
+
+        expect($operations)->toHaveCount(1);
+        expect($operations[0])->toBeInstanceOf(CreateFile::class);
+        expect($operations[0]->path)->toBe('config/app.php');
+        expect($operations[0]->contents)->toBe('<?php return [];');
+        expect($operations[0]->overwrite)->toBeTrue();
+    });
+
+    it('queues a CreateFile action with overwrite false', function (): void {
+        $step = new Step(name: 'Test step');
+
+        $step->create('file.txt', 'data', overwrite: false);
+
+        expect($step->operations()[0]->overwrite)->toBeFalse();
+    });
+
+    it('queues a ReadFile action from read()', function (): void {
+        $step = new Step(name: 'Test step');
+
+        $step->read('config/app.php');
+
+        $operations = $step->operations();
+
+        expect($operations)->toHaveCount(1);
+        expect($operations[0])->toBeInstanceOf(ReadFile::class);
+        expect($operations[0]->path)->toBe('config/app.php');
+    });
+
+    it('queues a DeleteFile action from delete()', function (): void {
+        $step = new Step(name: 'Test step');
+
+        $step->delete('one.txt', 'two.txt');
+
+        $operations = $step->operations();
+
+        expect($operations)->toHaveCount(1);
+        expect($operations[0])->toBeInstanceOf(DeleteFile::class);
+        expect($operations[0]->paths)->toBe(['one.txt', 'two.txt']);
+    });
+
+    it('queues a Sink action from sink()', function (): void {
+        $step = new Step(name: 'Test step');
+
+        $step->sink('https://example.com/file.yml', 'local.yml');
+
+        $operations = $step->operations();
+
+        expect($operations)->toHaveCount(1);
+        expect($operations[0])->toBeInstanceOf(Sink::class);
+        expect($operations[0]->from)->toBe('https://example.com/file.yml');
+        expect($operations[0]->to)->toBe('local.yml');
+    });
+
+    it('queues a CopyFile action from copy()', function (): void {
+        $step = new Step(name: 'Test step');
+
+        $step->copy('source.txt', 'dest.txt');
+
+        $operations = $step->operations();
+
+        expect($operations)->toHaveCount(1);
+        expect($operations[0])->toBeInstanceOf(CopyFile::class);
+        expect($operations[0]->from)->toBe('source.txt');
+        expect($operations[0]->to)->toBe('dest.txt');
+        expect($operations[0]->overwrite)->toBeTrue();
+    });
+
+    it('queues an AppendFile action from append()', function (): void {
+        $step = new Step(name: 'Test step');
+
+        $step->append('routes/api.php', "\nRoute::get('/teams');");
+
+        $operations = $step->operations();
+
+        expect($operations)->toHaveCount(1);
+        expect($operations[0])->toBeInstanceOf(AppendFile::class);
+        expect($operations[0]->path)->toBe('routes/api.php');
+        expect($operations[0]->contents)->toBe("\nRoute::get('/teams');");
+    });
+
+    it('chains file operations together', function (): void {
+        $step = new Step(name: 'Test step');
+
+        $step
+            ->create('file.txt', 'hello')
+            ->copy('file.txt', 'backup.txt')
+            ->append('file.txt', ' world')
+            ->read('file.txt')
+            ->delete('backup.txt');
+
+        expect($step->operations())->toHaveCount(5);
+        expect($step->operations()[0])->toBeInstanceOf(CreateFile::class);
+        expect($step->operations()[1])->toBeInstanceOf(CopyFile::class);
+        expect($step->operations()[2])->toBeInstanceOf(AppendFile::class);
+        expect($step->operations()[3])->toBeInstanceOf(ReadFile::class);
+        expect($step->operations()[4])->toBeInstanceOf(DeleteFile::class);
+    });
+
     it('can be constructed without a context', function (): void {
         $step = new Step(name: 'Test step');
 
