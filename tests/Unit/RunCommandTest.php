@@ -399,3 +399,197 @@ describe('RunCommand --step and --from mutual exclusivity', function (): void {
         expect($text)->toContain('mutually exclusive');
     });
 });
+
+describe('RunCommand step timing at normal verbosity', function (): void {
+
+    afterEach(function (): void {
+        ProcessExecutor::reset();
+    });
+
+    it('shows step duration at normal verbosity', function (): void {
+        ProcessExecutor::fake([
+            'composer require pkg' => ActionResult::success(
+                command: ['composer', 'require', 'pkg'],
+                output: 'ok',
+            ),
+        ]);
+
+        $recipe = writeRecipe($this->tempPath, <<<'PHP'
+        return compose('Test')->in('.')->step('Install', fn(Step $step) => $step->composer(install: ['pkg']));
+        PHP);
+
+        [$io, $output] = makeIo(OutputInterface::VERBOSITY_NORMAL);
+
+        $command = new RunCommand;
+        $command->__invoke(recipe: $recipe, io: $io);
+
+        $text = $output->fetch();
+
+        expect($text)->toMatch('/✓ Install.*\d+\.\d+s/');
+    });
+
+    it('shows step duration on failed steps at normal verbosity', function (): void {
+        ProcessExecutor::fake([
+            'composer require bad-pkg' => ActionResult::failure(1, 'Not found'),
+        ]);
+
+        $recipe = writeRecipe($this->tempPath, <<<'PHP'
+        return compose('Test')->in('.')->step('Install', fn(Step $step) => $step->composer(install: ['bad-pkg']));
+        PHP);
+
+        [$io, $output] = makeIo(OutputInterface::VERBOSITY_NORMAL);
+
+        $command = new RunCommand;
+        $command->__invoke(recipe: $recipe, io: $io);
+
+        $text = $output->fetch();
+
+        expect($text)->toMatch('/✗ Install.*\d+\.\d+s/');
+    });
+});
+
+describe('RunCommand auto-commit styling', function (): void {
+
+    afterEach(function (): void {
+        ProcessExecutor::reset();
+    });
+
+    it('does not show verbose command detail for auto-commit actions', function (): void {
+        ProcessExecutor::fake([
+            'composer require pkg' => ActionResult::success(
+                command: ['composer', 'require', 'pkg'],
+                output: 'installed',
+            ),
+            'git add -A' => ActionResult::success(
+                command: ['git', 'add', '-A'],
+                output: '',
+            ),
+            'git commit *' => ActionResult::success(
+                command: ['git', 'commit', '-m', 'compose: Install'],
+                output: '',
+            ),
+        ]);
+
+        $recipe = writeRecipe($this->tempPath, <<<'PHP'
+        return compose('Test')->in('.')->commit(automatically: true)->step('Install', fn(Step $step) => $step->composer(install: ['pkg']));
+        PHP);
+
+        [$io, $output] = makeIo(OutputInterface::VERBOSITY_VERBOSE);
+
+        $command = new RunCommand;
+        $command->__invoke(recipe: $recipe, io: $io);
+
+        $text = $output->fetch();
+
+        expect($text)->toContain('git add');
+        expect($text)->toContain('git commit');
+        // Auto-commit actions should not show the verbose `$ command` detail
+        expect($text)->not->toContain('$ git add');
+        expect($text)->not->toContain('$ git commit');
+    });
+
+    it('shows skipped label for failed auto-commit actions', function (): void {
+        ProcessExecutor::fake([
+            'composer require pkg' => ActionResult::success(
+                command: ['composer', 'require', 'pkg'],
+                output: 'installed',
+            ),
+            'git add -A' => ActionResult::success(
+                command: ['git', 'add', '-A'],
+                output: '',
+            ),
+            'git commit *' => ActionResult::failure(1, 'nothing to commit'),
+        ]);
+
+        $recipe = writeRecipe($this->tempPath, <<<'PHP'
+        return compose('Test')->in('.')->commit(automatically: true)->step('Install', fn(Step $step) => $step->composer(install: ['pkg']));
+        PHP);
+
+        [$io, $output] = makeIo(OutputInterface::VERBOSITY_NORMAL);
+
+        $command = new RunCommand;
+        $command->__invoke(recipe: $recipe, io: $io);
+
+        $text = $output->fetch();
+
+        expect($text)->toContain('git commit');
+        expect($text)->toContain('skipped');
+        // Auto-commit failures should not show "warning, continuing"
+        expect($text)->not->toContain('warning, continuing');
+    });
+});
+
+describe('RunCommand summary output', function (): void {
+
+    afterEach(function (): void {
+        ProcessExecutor::reset();
+    });
+
+    it('shows success summary with elapsed time', function (): void {
+        ProcessExecutor::fake([
+            'composer require pkg' => ActionResult::success(
+                command: ['composer', 'require', 'pkg'],
+                output: 'ok',
+            ),
+        ]);
+
+        $recipe = writeRecipe($this->tempPath, <<<'PHP'
+        return compose('Test')->in('.')->step('Install', fn(Step $step) => $step->composer(install: ['pkg']));
+        PHP);
+
+        [$io, $output] = makeIo(OutputInterface::VERBOSITY_NORMAL);
+
+        $command = new RunCommand;
+        $command->__invoke(recipe: $recipe, io: $io);
+
+        $text = $output->fetch();
+
+        expect($text)->toMatch('/All 1 steps completed successfully in \d+\.\d+s/');
+    });
+
+    it('shows failure summary with elapsed time', function (): void {
+        ProcessExecutor::fake([
+            'composer require bad-pkg' => ActionResult::failure(1, 'Not found'),
+        ]);
+
+        $recipe = writeRecipe($this->tempPath, <<<'PHP'
+        return compose('Test')->in('.')->step('Install', fn(Step $step) => $step->composer(install: ['bad-pkg']));
+        PHP);
+
+        [$io, $output] = makeIo(OutputInterface::VERBOSITY_NORMAL);
+
+        $command = new RunCommand;
+        $command->__invoke(recipe: $recipe, io: $io);
+
+        $text = $output->fetch();
+
+        expect($text)->toMatch('/Failed at step.*0\/1 steps completed.*\d+\.\d+s elapsed/');
+    });
+
+    it('shows warning count in summary', function (): void {
+        ProcessExecutor::fake([
+            'composer require pkg' => ActionResult::success(
+                command: ['composer', 'require', 'pkg'],
+                output: 'ok',
+            ),
+            'composer require optional' => ActionResult::failure(1, 'Not found'),
+        ]);
+
+        $recipe = writeRecipe($this->tempPath, <<<'PHP'
+        use Compose\Enums\FailureStrategy;
+        return compose('Test')->in('.')->step('Install', fn(Step $step) => $step
+            ->composer(install: ['pkg'])
+            ->composer(install: ['optional'])
+        , onFailure: FailureStrategy::Continue);
+        PHP);
+
+        [$io, $output] = makeIo(OutputInterface::VERBOSITY_NORMAL);
+
+        $command = new RunCommand;
+        $command->__invoke(recipe: $recipe, io: $io);
+
+        $text = $output->fetch();
+
+        expect($text)->toContain('action(s) failed but were allowed to continue');
+    });
+});

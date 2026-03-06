@@ -80,23 +80,31 @@ class RunCommand extends Command
 
         $this->registerEventListeners($dispatcher, $io);
 
+        $startTime = microtime(true);
+
         $runner = new Runner(new ProcessExecutor, $dispatcher);
         $result = $runner->run($config);
 
-        if ($result->hasWarnings && $io !== null) {
-            $warningCount = count($result->warnings);
-            $io->warning("{$warningCount} action(s) failed but were allowed to continue.");
+        $elapsed = number_format(microtime(true) - $startTime, 2);
+
+        if ($io !== null) {
+            $io->newLine();
+
+            if ($result->hasWarnings) {
+                $warningCount = count($result->warnings);
+                $io->text("  <fg=yellow>⚠ {$warningCount} action(s) failed but were allowed to continue.</>");
+            }
+
+            if ($result->successful) {
+                $io->text("  <fg=green>✓ All {$result->stepsCompleted} steps completed successfully in {$elapsed}s</>");
+            } else {
+                $io->text("  <fg=red>✗ Failed at step {$result->failedAtStep}. {$result->stepsCompleted}/{$result->stepsTotal} steps completed ({$elapsed}s elapsed)</>");
+            }
+
+            $io->newLine();
         }
 
-        if ($result->successful) {
-            $io?->success("All {$result->stepsCompleted} steps completed successfully.");
-
-            return self::SUCCESS;
-        }
-
-        $io?->error("Failed at step {$result->failedAtStep}. {$result->stepsCompleted}/{$result->stepsTotal} steps completed.");
-
-        return self::FAILURE;
+        return $result->successful ? self::SUCCESS : self::FAILURE;
     }
 
     /**
@@ -186,6 +194,12 @@ class RunCommand extends Command
         });
 
         $dispatcher->listen(ActionExecuting::class, function (ActionExecuting $event) use ($io): void {
+            if ($event->autoCommit) {
+                $io->text("  <fg=gray>▸ {$event->action->describe()}</>");
+
+                return;
+            }
+
             $io->text("  <fg=gray>▸ {$event->action->describe()}</>");
 
             if ($io->isVerbose()) {
@@ -201,10 +215,16 @@ class RunCommand extends Command
             $duration = '';
 
             if ($io->isVerbose() && $event->result->duration !== null) {
-                $duration = ' <fg=gray>('.number_format($event->result->duration, 2).'s)</>';
+                $duration = ' ('.number_format($event->result->duration, 2).'s)';
             }
 
-            $io->text("  <fg=green>✓</> {$event->action->describe()}{$duration}");
+            if ($event->autoCommit) {
+                $io->text("  <fg=gray>✓ {$event->action->describe()}{$duration}</>");
+
+                return;
+            }
+
+            $io->text("  <fg=green>✓</> {$event->action->describe()}<fg=gray>{$duration}</>");
 
             if ($io->isVerbose() && $event->result->output !== '') {
                 foreach (explode("\n", trim($event->result->output)) as $line) {
@@ -227,11 +247,17 @@ class RunCommand extends Command
             $duration = '';
 
             if ($io->isVerbose() && $event->result->duration !== null) {
-                $duration = ' <fg=gray>('.number_format($event->result->duration, 2).'s)</>';
+                $duration = ' ('.number_format($event->result->duration, 2).'s)';
+            }
+
+            if ($event->autoCommit) {
+                $io->text("  <fg=gray>✗ {$event->action->describe()}{$duration} (skipped)</>");
+
+                return;
             }
 
             if ($event->warned) {
-                $io->text("  <fg=yellow>⚠</> {$event->action->describe()}{$duration} <fg=yellow>(warning, continuing)</>");
+                $io->text("  <fg=yellow>⚠</> {$event->action->describe()}<fg=gray>{$duration}</> <fg=yellow>(warning, continuing)</>");
 
                 if ($event->result->errorOutput !== '') {
                     $io->text("    <fg=yellow>{$event->result->errorOutput}</>");
@@ -240,7 +266,7 @@ class RunCommand extends Command
                 return;
             }
 
-            $io->text("  <fg=red>✗</> {$event->action->describe()}{$duration}");
+            $io->text("  <fg=red>✗</> {$event->action->describe()}<fg=gray>{$duration}</>");
 
             if ($event->result->errorOutput !== '') {
                 $io->text("    <fg=red>{$event->result->errorOutput}</>");
@@ -250,7 +276,7 @@ class RunCommand extends Command
         $dispatcher->listen(StepCompleted::class, function (StepCompleted $event) use ($io, &$stepTimers): void {
             $duration = '';
 
-            if ($io->isVerbose() && isset($stepTimers[$event->index])) {
+            if (isset($stepTimers[$event->index])) {
                 $elapsed = microtime(true) - $stepTimers[$event->index];
                 $duration = ' <fg=gray>('.number_format($elapsed, 2).'s)</>';
                 unset($stepTimers[$event->index]);
@@ -262,7 +288,7 @@ class RunCommand extends Command
         $dispatcher->listen(StepFailed::class, function (StepFailed $event) use ($io, &$stepTimers): void {
             $duration = '';
 
-            if ($io->isVerbose() && isset($stepTimers[$event->index])) {
+            if (isset($stepTimers[$event->index])) {
                 $elapsed = microtime(true) - $stepTimers[$event->index];
                 $duration = ' <fg=gray>('.number_format($elapsed, 2).'s)</>';
                 unset($stepTimers[$event->index]);

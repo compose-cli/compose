@@ -12,5 +12,6 @@ class ActionCompleted
     public function __construct(
         public readonly Action $action,
         public readonly ActionResult $result,
+        public readonly bool $autoCommit = false,
     ) {}
 }

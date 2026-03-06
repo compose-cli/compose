@@ -13,5 +13,6 @@ class ActionFailed
         public readonly Action $action,
         public readonly ActionResult $result,
         public readonly bool $warned = false,
+        public readonly bool $autoCommit = false,
     ) {}
 }

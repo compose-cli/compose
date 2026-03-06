@@ -230,7 +230,7 @@ class Runner
      */
     private function executeAutoCommitAction(Action $action, RecipeContext $context): void
     {
-        $this->dispatcher->dispatch(new ActionExecuting($action));
+        $this->dispatcher->dispatch(new ActionExecuting($action, autoCommit: true));
 
         $result = $this->executor->execute(
             $action->command()->toArray(),
@@ -238,9 +238,9 @@ class Runner
         );
 
         if ($result->successful) {
-            $this->dispatcher->dispatch(new ActionCompleted($action, $result));
+            $this->dispatcher->dispatch(new ActionCompleted($action, $result, autoCommit: true));
         } else {
-            $this->dispatcher->dispatch(new ActionFailed($action, $result, warned: true));
+            $this->dispatcher->dispatch(new ActionFailed($action, $result, warned: true, autoCommit: true));
         }
     }
 }

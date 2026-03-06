@@ -144,16 +144,7 @@ $step->instruct('Create a dashboard with team memberships', fn (Instruct $i) => 
 
 ## Priority 9: CLI Enhancements
 
-### 9.1 Additional CLI Commands
-
-- [ ] `compose plan [recipe]` — dry-run, show what would happen (exists, needs polish)
-- [ ] `compose steps [recipe]` — list steps without action detail
-- [ ] `compose inspect [--step=<name>]` — detailed view of a single step
-- [ ] `compose run --from=<step>` — resume from a specific step (by number or name)
-- [ ] `compose run --step=<step>` — run only a specific step
-- [ ] `compose run --no-commit` — skip all git commits
-- [ ] `compose run --verbose` — show full command output
-- [ ] `compose run --quiet` — only show errors
+### 9.1 Additional CLI Commands - complete
 
 ### 9.2 CLI Output Polish
 
