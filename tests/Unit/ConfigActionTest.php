@@ -327,7 +327,7 @@ describe('Artisan::config()', function (): void {
     it('preserves ordering with artisan commands', function (): void {
         $builder = new Artisan;
         $builder
-            ->publish(provider: 'Spatie\\Permission\\PermissionServiceProvider')
+            ->publish(provider: \Spatie\Permission\PermissionServiceProvider::class)
             ->config('permission.teams', true)
             ->migrate();
 

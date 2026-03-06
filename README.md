@@ -382,13 +382,18 @@ String assertions are reserved for future AI-powered verification and are curren
 $step->verify('The User model uses HasRoles');  // Skipped (AI not available)
 ```
 
-`test()` runs test files via `php artisan test`:
+`test()` runs test files via `php artisan test`. It accepts a single path or an array:
 
 ```php
-$step->test('tests/Feature/TeamTest.php', 'tests/Feature/UserTest.php');
+$step->test('tests/Feature/TeamTest.php');
+$step->test(['tests/Feature/TeamTest.php', 'tests/Feature/UserTest.php']);
 ```
 
-Test failures are treated as warnings by default, so the recipe continues.
+Test failures are treated as warnings by default. Pass `allowFailure: false` to make them fatal:
+
+```php
+$step->test('tests/Feature/AuthTest.php', allowFailure: false);
+```
 
 ### Git
 
@@ -860,12 +865,12 @@ Closure conditions are evaluated at operation-resolution time. The callback rece
 ### Verification Gates
 
 ```php
-$step->verify(string|Closure $assertion);  // Non-fatal: warn on falsy, continue
-$step->assert(Closure $assertion);          // Fatal: stop execution on falsy
-$step->test(string ...$tests);              // Non-fatal: run artisan test --filter per path
+$step->verify(string|Closure $assertion);                     // Non-fatal: warn on falsy, continue
+$step->assert(Closure $assertion);                             // Fatal: stop execution on falsy
+$step->test(array|string $tests, bool $allowFailure = true);  // Run artisan test --filter per path
 ```
 
-`verify()` with a Closure checks truthiness. With a string, defers to AI (currently skipped). `assert()` is like `verify()` but stops the recipe on failure. `test()` runs `php artisan test --filter=<path>` for each path.
+`verify()` with a Closure checks truthiness. With a string, defers to AI (currently skipped). `assert()` is like `verify()` but stops the recipe on failure. `test()` runs `php artisan test --filter=<path>` for each path; pass `allowFailure: false` for fatal test gates.
 
 ### `commit()`
 
@@ -885,13 +890,16 @@ use Compose\Enums\Node;
 use Compose\Builders\Artisan;
 use Compose\Builders\ModifyBuilder;
 
+$useTeams = true;
+$useTelescope = false;
+
 return compose('SaaS Starter')
     ->in('saas-app', fresh: true)
     ->base(repo: 'https://github.com/laravel/laravel.git', branch: '11.x')
     ->node(Node::Pnpm)
     ->commit(automatically: true)
 
-    ->step('Core Packages', function (Step $step): void {
+    ->step('Core Packages', function (Step $step) use ($useTelescope): void {
         $step
             ->composer(install: [
                 'laravel/cashier',
@@ -901,22 +909,32 @@ return compose('SaaS Starter')
             ->composer(dev: [
                 'pestphp/pest',
                 'laravel/pint',
-            ]);
+            ])
+            ->when($useTelescope, fn (Step $s) => $s
+                ->composer(dev: ['laravel/telescope'])
+                ->artisan('telescope:install')
+            );
     })
 
-    ->step('Database & Models', function (Step $step): void {
+    ->step('Database & Models', function (Step $step) use ($useTeams): void {
         $step
             ->artisan(function (Artisan $a): void {
                 $a->publish(provider: 'Spatie\Permission\PermissionServiceProvider')
                   ->publish(tag: 'cashier-migrations')
-                  ->migrate()
-                  ->makeModel('Team', migration: true, factory: true)
-                  ->makeModel('Subscription', migration: true);
+                  ->migrate();
             })
+            ->when($useTeams, fn (Step $s) => $s
+                ->artisan(fn (Artisan $a) => $a
+                    ->makeModel('Team', migration: true, factory: true)
+                    ->makeModel('Subscription', migration: true)
+                )
+            )
             ->modify('app/Models/User.php', function (ModifyBuilder $m): void {
                 $m->addTrait('Spatie\Permission\Traits\HasRoles')
                   ->addToArray('fillable', ['team_id']);
-            });
+            })
+            ->verify(fn () => file_exists('config/permission.php'))
+            ->assert(fn () => file_exists('database/migrations'));
     })
 
     ->step('Frontend', function (Step $step): void {
@@ -937,7 +955,14 @@ return compose('SaaS Starter')
                 DB_CONNECTION=sqlite
                 DB_DATABASE=:memory:
                 ENV)
-            ->delete('README.md');
+            ->unless(fn () => file_exists('.gitignore'), fn (Step $s) => $s
+                ->create('.gitignore', "/vendor\n/node_modules\n.env\n")
+            )
+            ->tap(fn (Step $s) => $s
+                ->delete('README.md')
+                ->delete('CHANGELOG.md')
+            )
+            ->test('tests/Feature/ExampleTest.php');
     });
 ```
 
@@ -948,6 +973,8 @@ return compose('SaaS Starter')
 
 use Compose\Step;
 
+$useHorizon = true;
+
 return compose('API Service')
     ->in('api-service', fresh: true)
     ->base(repo: 'https://github.com/laravel/laravel.git')
@@ -955,31 +982,44 @@ return compose('API Service')
 
     ->step('Strip Frontend', function (Step $step): void {
         $step
-            ->delete(
-                'resources/js',
-                'resources/css',
-                'vite.config.js',
-                'package.json',
-            )
-            ->composer(remove: ['laravel/vite-plugin']);
+            ->when(fn () => file_exists('package.json'), fn (Step $s) => $s
+                ->delete(
+                    'resources/js',
+                    'resources/css',
+                    'vite.config.js',
+                    'package.json',
+                )
+                ->composer(remove: ['laravel/vite-plugin'])
+            );
     })
 
-    ->step('API Packages', function (Step $step): void {
+    ->step('API Packages', function (Step $step) use ($useHorizon): void {
         $step
             ->composer(install: [
                 'laravel/sanctum',
                 'spatie/laravel-query-builder',
                 'spatie/laravel-data',
             ])
+            ->when($useHorizon, fn (Step $s) => $s
+                ->composer(install: ['laravel/horizon'])
+                ->artisan('horizon:install')
+            )
             ->artisan('vendor:publish --provider="Laravel\Sanctum\SanctumServiceProvider"')
-            ->artisan('migrate');
+            ->artisan('migrate')
+            ->assert(fn () => file_exists('config/sanctum.php'));
     })
 
     ->step('API Structure', function (Step $step): void {
         $step
-            ->create('app/Http/Controllers/Api/V1/.gitkeep', '')
-            ->create('app/Data/.gitkeep', '')
-            ->create('app/Actions/.gitkeep', '');
+            ->tap(fn (Step $s) => $s
+                ->create('app/Http/Controllers/Api/V1/.gitkeep', '')
+                ->create('app/Data/.gitkeep', '')
+                ->create('app/Actions/.gitkeep', '')
+            )
+            ->unless(fn () => file_exists('routes/api.php'), fn (Step $s) => $s
+                ->create('routes/api.php', "<?php\n\nuse Illuminate\Support\Facades\Route;\n")
+            )
+            ->test('tests/Feature/ExampleTest.php', allowFailure: false);
     });
 ```
 

@@ -37,10 +37,10 @@ describe('ClassManipulator', function (): void {
             $class = $ns->addClass('User');
             $m = new ClassManipulator($class, $ns);
 
-            $m->addTrait('Spatie\\Permission\\Traits\\HasRoles');
+            $m->addTrait(\Spatie\Permission\Traits\HasRoles::class);
 
-            expect($class->getTraits())->toHaveKey('Spatie\\Permission\\Traits\\HasRoles');
-            expect(array_values($ns->getUses()))->toContain('Spatie\\Permission\\Traits\\HasRoles');
+            expect($class->getTraits())->toHaveKey(\Spatie\Permission\Traits\HasRoles::class);
+            expect(array_values($ns->getUses()))->toContain(\Spatie\Permission\Traits\HasRoles::class);
         });
 
     });

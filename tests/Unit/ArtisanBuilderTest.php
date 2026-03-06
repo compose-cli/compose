@@ -92,7 +92,7 @@ describe('Artisan', function (): void {
     it('generates a vendor:publish command with provider', function (): void {
         $builder = new Artisan;
 
-        $builder->publish(provider: 'Spatie\Permission\PermissionServiceProvider');
+        $builder->publish(provider: \Spatie\Permission\PermissionServiceProvider::class);
 
         expect($builder->actions()[0]->command)
             ->toBe('vendor:publish --provider=Spatie\Permission\PermissionServiceProvider');
@@ -110,7 +110,7 @@ describe('Artisan', function (): void {
         $builder = new Artisan;
 
         $builder->publish(
-            provider: 'Spatie\Permission\PermissionServiceProvider',
+            provider: \Spatie\Permission\PermissionServiceProvider::class,
             tag: 'permission-migrations',
         );
 
