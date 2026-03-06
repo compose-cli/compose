@@ -76,4 +76,17 @@ describe('ProcessExecutor', function (): void {
         ProcessExecutor::assertNothingExecuted();
     });
 
+    it('has a default timeout constant', function (): void {
+        expect(ProcessExecutor::DEFAULT_TIMEOUT)->toBe(300.0);
+    });
+
+    it('times out long-running commands', function (): void {
+        $executor = new ProcessExecutor;
+        $result = $executor->execute(['php', '-r', 'sleep(10);'], timeout: 0.1);
+
+        expect($result->successful)->toBeFalse();
+        expect($result->exitCode)->toBe(124);
+        expect($result->errorOutput)->toContain('Process timed out after');
+    });
+
 });

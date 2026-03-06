@@ -88,7 +88,10 @@ class ComposeCommand extends Command
             return;
         }
 
-        $dispatcher->listen(StepStarting::class, function (StepStarting $event) use ($io): void {
+        $stepTimers = [];
+
+        $dispatcher->listen(StepStarting::class, function (StepStarting $event) use ($io, &$stepTimers): void {
+            $stepTimers[$event->index] = microtime(true);
             $io->section($event->step->name);
 
             if ($event->step->message !== null) {
@@ -98,15 +101,51 @@ class ComposeCommand extends Command
 
         $dispatcher->listen(ActionExecuting::class, function (ActionExecuting $event) use ($io): void {
             $io->text("  <fg=gray>▸ {$event->action->describe()}</>");
+
+            if ($io->isVerbose()) {
+                $command = $event->action->command();
+
+                if ($command !== null && $command->toString() !== $event->action->describe()) {
+                    $io->text("    <fg=gray>$ {$command->toString()}</>");
+                }
+            }
         });
 
         $dispatcher->listen(ActionCompleted::class, function (ActionCompleted $event) use ($io): void {
-            $io->text("  <fg=green>✓</> {$event->action->describe()}");
+            $duration = '';
+
+            if ($io->isVerbose() && $event->result->duration !== null) {
+                $duration = ' <fg=gray>('.number_format($event->result->duration, 2).'s)</>';
+            }
+
+            $io->text("  <fg=green>✓</> {$event->action->describe()}{$duration}");
+
+            if ($io->isVerbose() && $event->result->output !== '') {
+                foreach (explode("\n", trim($event->result->output)) as $line) {
+                    $io->text("    <fg=gray>{$line}</>");
+                }
+            }
+
+            if ($io->isVeryVerbose() && $event->result->errorOutput !== '') {
+                foreach (explode("\n", trim($event->result->errorOutput)) as $line) {
+                    $io->text("    <fg=yellow>{$line}</>");
+                }
+            }
+
+            if ($io->isDebug()) {
+                $io->text("    <fg=gray>exit code: {$event->result->exitCode}</>");
+            }
         });
 
         $dispatcher->listen(ActionFailed::class, function (ActionFailed $event) use ($io): void {
+            $duration = '';
+
+            if ($io->isVerbose() && $event->result->duration !== null) {
+                $duration = ' <fg=gray>('.number_format($event->result->duration, 2).'s)</>';
+            }
+
             if ($event->warned) {
-                $io->text("  <fg=yellow>⚠</> {$event->action->describe()} <fg=yellow>(warning, continuing)</>");
+                $io->text("  <fg=yellow>⚠</> {$event->action->describe()}{$duration} <fg=yellow>(warning, continuing)</>");
 
                 if ($event->result->errorOutput !== '') {
                     $io->text("    <fg=yellow>{$event->result->errorOutput}</>");
@@ -115,19 +154,35 @@ class ComposeCommand extends Command
                 return;
             }
 
-            $io->text("  <fg=red>✗</> {$event->action->describe()}");
+            $io->text("  <fg=red>✗</> {$event->action->describe()}{$duration}");
 
             if ($event->result->errorOutput !== '') {
                 $io->text("    <fg=red>{$event->result->errorOutput}</>");
             }
         });
 
-        $dispatcher->listen(StepCompleted::class, function (StepCompleted $event) use ($io): void {
-            $io->text("<fg=green>  ✓ {$event->step->name}</>");
+        $dispatcher->listen(StepCompleted::class, function (StepCompleted $event) use ($io, &$stepTimers): void {
+            $duration = '';
+
+            if ($io->isVerbose() && isset($stepTimers[$event->index])) {
+                $elapsed = microtime(true) - $stepTimers[$event->index];
+                $duration = ' <fg=gray>('.number_format($elapsed, 2).'s)</>';
+                unset($stepTimers[$event->index]);
+            }
+
+            $io->text("<fg=green>  ✓ {$event->step->name}{$duration}</>");
         });
 
-        $dispatcher->listen(StepFailed::class, function (StepFailed $event) use ($io): void {
-            $io->text("<fg=red>  ✗ {$event->step->name}</>");
+        $dispatcher->listen(StepFailed::class, function (StepFailed $event) use ($io, &$stepTimers): void {
+            $duration = '';
+
+            if ($io->isVerbose() && isset($stepTimers[$event->index])) {
+                $elapsed = microtime(true) - $stepTimers[$event->index];
+                $duration = ' <fg=gray>('.number_format($elapsed, 2).'s)</>';
+                unset($stepTimers[$event->index]);
+            }
+
+            $io->text("<fg=red>  ✗ {$event->step->name}{$duration}</>");
         });
 
         $dispatcher->listen(RollbackStarting::class, function (RollbackStarting $event) use ($io): void {

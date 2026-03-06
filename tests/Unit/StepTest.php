@@ -10,6 +10,8 @@ use Compose\Actions\File\ReadFile;
 use Compose\Actions\Git\GitAdd;
 use Compose\Actions\Git\GitCommit;
 use Compose\Actions\Sink;
+use Compose\Actions\Test\TestAction;
+use Compose\Actions\Verify\VerifyAction;
 use Compose\Builders\Artisan;
 use Compose\Builders\EnvBuilder;
 use Compose\Step;
@@ -298,6 +300,196 @@ describe('Step', function (): void {
         expect($operations[1])->toBeInstanceOf(ArtisanAction::class);
         expect($operations[2])->toBeInstanceOf(GitAdd::class);
         expect($operations[3])->toBeInstanceOf(GitCommit::class);
+    });
+
+});
+
+// -------------------------------------------------------------------
+// Conditional Execution
+// -------------------------------------------------------------------
+
+describe('conditional execution', function (): void {
+
+    it('when() executes callback when condition is true', function (): void {
+        $step = new Step(name: 'Test step');
+
+        $step->when(true, fn (Step $s) => $s->artisan('migrate'));
+
+        expect($step->operations())->toHaveCount(1);
+        expect($step->operations()[0])->toBeInstanceOf(ArtisanAction::class);
+    });
+
+    it('when() skips callback when condition is false', function (): void {
+        $step = new Step(name: 'Test step');
+
+        $step->when(false, fn (Step $s) => $s->artisan('migrate'));
+
+        expect($step->operations())->toBeEmpty();
+    });
+
+    it('when() evaluates a Closure condition returning true', function (): void {
+        $step = new Step(name: 'Test step');
+
+        $step->when(fn () => true, fn (Step $s) => $s->create('file.txt', 'hello'));
+
+        expect($step->operations())->toHaveCount(1);
+        expect($step->operations()[0])->toBeInstanceOf(CreateFile::class);
+    });
+
+    it('when() evaluates a Closure condition returning false', function (): void {
+        $step = new Step(name: 'Test step');
+
+        $step->when(fn () => false, fn (Step $s) => $s->create('file.txt', 'hello'));
+
+        expect($step->operations())->toBeEmpty();
+    });
+
+    it('unless() skips callback when condition is true', function (): void {
+        $step = new Step(name: 'Test step');
+
+        $step->unless(true, fn (Step $s) => $s->artisan('migrate'));
+
+        expect($step->operations())->toBeEmpty();
+    });
+
+    it('unless() executes callback when condition is false', function (): void {
+        $step = new Step(name: 'Test step');
+
+        $step->unless(false, fn (Step $s) => $s->composer(dev: ['laravel/telescope']));
+
+        expect($step->operations())->toHaveCount(1);
+    });
+
+    it('unless() evaluates a Closure condition', function (): void {
+        $step = new Step(name: 'Test step');
+
+        $step->unless(fn () => false, fn (Step $s) => $s->create('file.txt', 'data'));
+
+        expect($step->operations())->toHaveCount(1);
+        expect($step->operations()[0])->toBeInstanceOf(CreateFile::class);
+    });
+
+    it('tap() always executes the callback', function (): void {
+        $step = new Step(name: 'Test step');
+        $called = false;
+
+        $step->tap(function (Step $s) use (&$called): void {
+            $called = true;
+            $s->create('debug.log', 'tap was here');
+        });
+
+        expect($called)->toBeTrue();
+        expect($step->operations())->toHaveCount(1);
+        expect($step->operations()[0])->toBeInstanceOf(CreateFile::class);
+    });
+
+    it('chains when, unless, and other methods fluently', function (): void {
+        $step = new Step(name: 'Test step');
+
+        $step
+            ->composer(install: ['laravel/framework'])
+            ->when(true, fn (Step $s) => $s->artisan('migrate'))
+            ->unless(false, fn (Step $s) => $s->create('config.php', '<?php return [];'))
+            ->when(false, fn (Step $s) => $s->artisan('should-not-run'))
+            ->delete('temp.txt');
+
+        $operations = $step->operations();
+
+        expect($operations)->toHaveCount(4);
+        expect($operations[1])->toBeInstanceOf(ArtisanAction::class);
+        expect($operations[2])->toBeInstanceOf(CreateFile::class);
+        expect($operations[3])->toBeInstanceOf(DeleteFile::class);
+    });
+
+});
+
+// -------------------------------------------------------------------
+// Verification Gates
+// -------------------------------------------------------------------
+
+describe('verification gates', function (): void {
+
+    it('verify() with Closure queues a VerifyAction with allowFailure true', function (): void {
+        $step = new Step(name: 'Test step');
+
+        $step->verify(fn () => true);
+
+        $operations = $step->operations();
+
+        expect($operations)->toHaveCount(1);
+        expect($operations[0])->toBeInstanceOf(VerifyAction::class);
+        expect($operations[0]->allowFailure)->toBeTrue();
+    });
+
+    it('verify() with string queues a VerifyAction with allowFailure true', function (): void {
+        $step = new Step(name: 'Test step');
+
+        $step->verify('The User model uses HasRoles');
+
+        $operations = $step->operations();
+
+        expect($operations)->toHaveCount(1);
+        expect($operations[0])->toBeInstanceOf(VerifyAction::class);
+        expect($operations[0]->assertion)->toBe('The User model uses HasRoles');
+        expect($operations[0]->allowFailure)->toBeTrue();
+    });
+
+    it('assert() with Closure queues a VerifyAction with allowFailure false', function (): void {
+        $step = new Step(name: 'Test step');
+
+        $step->assert(fn () => file_exists('something'));
+
+        $operations = $step->operations();
+
+        expect($operations)->toHaveCount(1);
+        expect($operations[0])->toBeInstanceOf(VerifyAction::class);
+        expect($operations[0]->allowFailure)->toBeFalse();
+    });
+
+    it('test() with a single path queues one TestAction', function (): void {
+        $step = new Step(name: 'Test step');
+
+        $step->test('tests/Feature/TeamTest.php');
+
+        $operations = $step->operations();
+
+        expect($operations)->toHaveCount(1);
+        expect($operations[0])->toBeInstanceOf(TestAction::class);
+        expect($operations[0]->path)->toBe('tests/Feature/TeamTest.php');
+        expect($operations[0]->allowFailure)->toBeTrue();
+    });
+
+    it('test() with multiple paths queues multiple TestActions', function (): void {
+        $step = new Step(name: 'Test step');
+
+        $step->test(['tests/Feature/TeamTest.php', 'tests/Feature/UserTest.php']);
+
+        $operations = $step->operations();
+
+        expect($operations)->toHaveCount(2);
+        expect($operations[0])->toBeInstanceOf(TestAction::class);
+        expect($operations[0]->path)->toBe('tests/Feature/TeamTest.php');
+        expect($operations[1])->toBeInstanceOf(TestAction::class);
+        expect($operations[1]->path)->toBe('tests/Feature/UserTest.php');
+    });
+
+    it('chains verify, assert, and test with other operations', function (): void {
+        $step = new Step(name: 'Test step');
+
+        $step
+            ->composer(install: ['laravel/framework'])
+            ->verify(fn () => true)
+            ->test('tests/Feature/TeamTest.php')
+            ->assert(fn () => true)
+            ->artisan('migrate');
+
+        $operations = $step->operations();
+
+        expect($operations)->toHaveCount(5);
+        expect($operations[1])->toBeInstanceOf(VerifyAction::class);
+        expect($operations[2])->toBeInstanceOf(TestAction::class);
+        expect($operations[3])->toBeInstanceOf(VerifyAction::class);
+        expect($operations[4])->toBeInstanceOf(ArtisanAction::class);
     });
 
 });

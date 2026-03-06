@@ -52,42 +52,11 @@ compose('My App')->use(Permissions::withRoles('admin', 'editor'));
 
 ---
 
-## Priority 6: Control Flow & Verification
+## Priority 6: Control Flow & Verification - complete
 
-### 6.1 Conditional Execution
+### 6.1 Conditional Execution - complete
 
-**Why:** `when()` and `unless()` on Step allow conditional operations without breaking the fluent chain.
-
-```php
-$step->when($useApi, fn (Step $s) => $s->artisan('make:controller Api/TeamController'))
-     ->unless($isMinimal, fn (Step $s) => $s->composer(dev: ['laravel/telescope']));
-```
-
-- [ ] Add `Step::when(Closure|bool $condition, Closure $callback): static`
-- [ ] Add `Step::unless(Closure|bool $condition, Closure $callback): static`
-- [ ] When condition is a Closure, resolve it at operation-resolution time (deferred)
-- [ ] Add `Step::tap(Closure $callback): static` for side effects
-- [ ] Add tests for boolean conditions, closure conditions, and chaining
-
-### 6.2 Verification Gates
-
-**Why:** `verify()` and `test()` let users assert project state before proceeding. Failed verification stops execution.
-
-```php
-$step->verify(fn () => file_exists('config/permission.php'));
-$step->verify('The User model uses HasRoles'); // AI-powered (later)
-$step->test('tests/Feature/TeamTest.php');
-```
-
-- [ ] Create `src/Actions/Verify/VerifyAction.php` — takes a Closure, runs it, fails if falsy
-- [ ] Create `src/Actions/Test/TestAction.php` — runs `php artisan test --filter=<file>`
-- [ ] Add `Step::verify(string|Closure $assertion): static`
-- [ ] When Closure: execute and check truthiness
-- [ ] When string: defer to AI verification (placeholder for now, skip in `--no-ai` mode)
-- [ ] Add `Step::test(string ...$tests): static`
-- [ ] Add tests for closure verification, test gates
-
----
+### 6.2 Verification Gates - complete
 
 ## Priority 7: AI Integration
 

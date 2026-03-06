@@ -132,6 +132,7 @@ class RollbackManager
             $results[] = $executor->execute(
                 $rollbackCommand->toArray(),
                 $cwd,
+                $rollbackCommand->getTimeout(),
             );
         }
 

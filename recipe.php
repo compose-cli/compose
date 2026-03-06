@@ -32,14 +32,14 @@ $recipe->step('Auth & Permissions', function (Step $step): void {
         ->composer(install: ['laravel/fortify', 'spatie/laravel-permission'])
         ->artisan(function (Artisan $a): void {
             $a->publish(provider: 'Laravel\Fortify\FortifyServiceProvider')
-              ->publish(provider: 'Spatie\Permission\PermissionServiceProvider')
-              ->config('permission.teams', true)
-              ->config('permission', fn (ConfigBuilder $c) => $c
-                  ->merge('guard_names', ['web', 'api'])
-                  ->set('models.role', 'App\\Models\\Role')
-                  ->set('models.permission', 'App\\Models\\Permission'))
-              ->migrate()
-              ->seed('RolesAndPermissionsSeeder');
+                ->publish(provider: 'Spatie\Permission\PermissionServiceProvider')
+                ->config('permission.teams', true)
+                ->config('permission', fn (ConfigBuilder $c) => $c
+                    ->merge('guard_names', ['web', 'api'])
+                    ->set('models.role', 'App\\Models\\Role')
+                    ->set('models.permission', 'App\\Models\\Permission'))
+                ->migrate()
+                ->seed('RolesAndPermissionsSeeder');
         })
         ->modify('app/Models/User.php', fn (ModifyBuilder $m) => $m
             ->addTrait('Spatie\Permission\Traits\HasRoles')

@@ -313,6 +313,96 @@ class Step
     }
 
     /**
+     * Execute the callback when the condition is truthy.
+     *
+     * Accepts a boolean or a Closure that returns a boolean.
+     * Closure conditions are evaluated at call time (during
+     * operation resolution), enabling deferred checks.
+     *
+     * @param  Closure(static): void  $callback
+     */
+    public function when(Closure|bool $condition, Closure $callback): static
+    {
+        $result = $condition instanceof Closure ? $condition() : $condition;
+
+        if ($result) {
+            $callback($this);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Execute the callback when the condition is falsy.
+     *
+     * @param  Closure(static): void  $callback
+     */
+    public function unless(Closure|bool $condition, Closure $callback): static
+    {
+        $result = $condition instanceof Closure ? $condition() : $condition;
+
+        if (! $result) {
+            $callback($this);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Execute a callback for side effects without affecting the chain.
+     *
+     * @param  Closure(static): void  $callback
+     */
+    public function tap(Closure $callback): static
+    {
+        $callback($this);
+
+        return $this;
+    }
+
+    /**
+     * Assert that a condition holds, stopping execution if it fails.
+     *
+     * The closure is called at execution time. A falsy return value
+     * causes the step (and recipe) to fail immediately.
+     */
+    public function assert(Closure $assertion): static
+    {
+        $this->operations[] = new Actions\Verify\VerifyAction($assertion);
+
+        return $this;
+    }
+
+    /**
+     * Verify a condition or AI assertion, logging a warning on failure.
+     *
+     * When passed a Closure, it is called at execution time and checked
+     * for truthiness. When passed a string, it is deferred to AI
+     * verification (placeholder — currently skipped).
+     */
+    public function verify(string|Closure $assertion): static
+    {
+        $this->operations[] = new Actions\Verify\VerifyAction($assertion, allowFailure: true);
+
+        return $this;
+    }
+
+    /**
+     * Run one or more test files via artisan test.
+     *
+     * Each path creates a separate TestAction. Failures are
+     * treated as warnings so the recipe can continue.
+     */
+    public function test(array|string $tests, bool $allowFailure = true): static
+    {
+        foreach ((array) $tests as $test) {
+            $this->operations[] = new Actions\Test\TestAction($test, allowFailure: $allowFailure);
+        }
+
+        return $this;
+    }
+
+    /**
      * Whether a failed action should be treated as a warning.
      */
     public function shouldWarnOnFailure(Action $action): bool

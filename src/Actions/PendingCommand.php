@@ -30,6 +30,11 @@ class PendingCommand implements Stringable
      */
     protected array $arguments = [];
 
+    /**
+     * The timeout in seconds for this command (null = use ProcessExecutor default).
+     */
+    protected ?float $timeout = null;
+
     public function __construct(string ...$parts)
     {
         $this->parts = $parts;
@@ -53,6 +58,24 @@ class PendingCommand implements Stringable
         $this->flags[] = $flag;
 
         return $this;
+    }
+
+    /**
+     * Set the timeout for this command in seconds.
+     */
+    public function timeout(?float $seconds): static
+    {
+        $this->timeout = $seconds;
+
+        return $this;
+    }
+
+    /**
+     * Get the configured timeout (null means use the executor default).
+     */
+    public function getTimeout(): ?float
+    {
+        return $this->timeout;
     }
 
     /**

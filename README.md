@@ -336,6 +336,60 @@ $step
 
 GitHub shorthand format: `github:owner/repo@ref:path/to/file`. The `@ref` defaults to `main` when omitted.
 
+### Conditional Execution
+
+`when()` and `unless()` let you add operations conditionally without breaking the fluent chain:
+
+```php
+$step
+    ->composer(install: ['laravel/framework'])
+    ->when($useApi, fn (Step $s) => $s->artisan('make:controller Api/TeamController'))
+    ->unless($isMinimal, fn (Step $s) => $s->composer(dev: ['laravel/telescope']));
+```
+
+Conditions can be booleans or closures. Closure conditions are evaluated at operation-resolution time, so they can defer decisions until the step actually runs:
+
+```php
+$step->when(fn () => file_exists('composer.json'), fn (Step $s) => $s
+    ->composer(run: 'post-install-cmd')
+);
+```
+
+`tap()` always runs its callback — useful for logging, side effects, or grouping without conditions:
+
+```php
+$step->tap(fn (Step $s) => $s
+    ->create('storage/logs/.gitkeep', '')
+    ->create('storage/framework/sessions/.gitkeep', '')
+);
+```
+
+### Verification Gates
+
+`verify()` and `assert()` let you check project state during execution:
+
+```php
+$step
+    ->verify(fn () => file_exists('config/permission.php'))  // Warn on failure, continue
+    ->assert(fn () => file_exists('composer.json'));          // Stop execution on failure
+```
+
+`verify()` is non-fatal — a falsy return logs a warning but the recipe continues. `assert()` is fatal — a falsy return stops the step and recipe immediately.
+
+String assertions are reserved for future AI-powered verification and are currently skipped:
+
+```php
+$step->verify('The User model uses HasRoles');  // Skipped (AI not available)
+```
+
+`test()` runs test files via `php artisan test`:
+
+```php
+$step->test('tests/Feature/TeamTest.php', 'tests/Feature/UserTest.php');
+```
+
+Test failures are treated as warnings by default, so the recipe continues.
+
 ### Git
 
 ```php
@@ -493,6 +547,10 @@ src/
 │   │   ├── GitClone.php
 │   │   ├── GitCommit.php
 │   │   └── GitInit.php
+│   ├── Test/
+│   │   └── TestAction.php         # Run artisan test --filter (command-based)
+│   ├── Verify/
+│   │   └── VerifyAction.php       # Closure/string assertion (direct execution)
 │   └── Node/
 │       ├── NodeAction.php         # Abstract base (adapts to npm/yarn/pnpm/bun)
 │       ├── NodeInstall.php
@@ -521,7 +579,8 @@ src/
 │   ├── GitOperation.php
 │   ├── Node.php                   # npm, yarn, pnpm, bun
 │   ├── PackageOperation.php
-│   └── TaskType.php
+│   ├── TaskType.php
+│   └── VerifyOperation.php
 │
 ├── Events/                        # Lifecycle events
 │   ├── EventDispatcher.php
@@ -788,6 +847,26 @@ $step->modify('package.json', function (ModifyBuilder $m): void {
 
 File type detection: `.php` → Nette AST, `.json` → JSON manipulator, everything else → text. For `.php` files, AST ops run first, then text ops on the result.
 
+### Conditional Execution
+
+```php
+$step->when(Closure|bool $condition, Closure $callback);   // Run callback if truthy
+$step->unless(Closure|bool $condition, Closure $callback);  // Run callback if falsy
+$step->tap(Closure $callback);                              // Always run callback
+```
+
+Closure conditions are evaluated at operation-resolution time. The callback receives the `Step` instance. All three return `static` for chaining.
+
+### Verification Gates
+
+```php
+$step->verify(string|Closure $assertion);  // Non-fatal: warn on falsy, continue
+$step->assert(Closure $assertion);          // Fatal: stop execution on falsy
+$step->test(string ...$tests);              // Non-fatal: run artisan test --filter per path
+```
+
+`verify()` with a Closure checks truthiness. With a string, defers to AI (currently skipped). `assert()` is like `verify()` but stops the recipe on failure. `test()` runs `php artisan test --filter=<path>` for each path.
+
 ### `commit()`
 
 ```php
@@ -940,6 +1019,8 @@ return compose('API Service')
 | `EnvAction` | `EnvOperation` | `Env` |
 | `ModifyAction` | `ModifyOperation` | `Modify` |
 | `GitAdd/Clone/Commit/Init` | `GitOperation` | `Clone`, `Init`, `Add`, `Commit` |
+| `VerifyAction` | `VerifyOperation` | `Verify` |
+| `TestAction` | `VerifyOperation` | `Test` |
 
 ## Node Manager Behavior
 

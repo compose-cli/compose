@@ -145,6 +145,7 @@ class ExecuteActions
         return $context->executor->execute(
             $command->toArray(),
             $context->recipeContext->workingDirectory,
+            $command->getTimeout(),
         );
     }
 
@@ -172,6 +173,7 @@ class ExecuteActions
         $result = $context->executor->execute(
             $preflight->toArray(),
             $context->recipeContext->workingDirectory,
+            $preflight->getTimeout(),
         );
 
         $this->preflighted[$class] = true;

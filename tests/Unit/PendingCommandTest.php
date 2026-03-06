@@ -41,4 +41,17 @@ describe('PendingCommand', function (): void {
         expect((string) $cmd)->toBe('git clone https://github.com/laravel/laravel.git');
     });
 
+    it('has no timeout by default', function (): void {
+        $cmd = new PendingCommand('composer', 'require');
+
+        expect($cmd->getTimeout())->toBeNull();
+    });
+
+    it('sets a custom timeout', function (): void {
+        $cmd = (new PendingCommand('composer', 'require'))
+            ->timeout(60.0);
+
+        expect($cmd->getTimeout())->toBe(60.0);
+    });
+
 });
