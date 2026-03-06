@@ -82,6 +82,16 @@ class Compose
     protected string $gitBinary = 'git';
 
     /**
+     * Whether to run Laravel Pint after each step.
+     */
+    protected bool $formatWithPint = false;
+
+    /**
+     * Whether to run Rector after each step.
+     */
+    protected bool $formatWithRector = false;
+
+    /**
      * The before callbacks to run before the composition.
      *
      * @var callable[]
@@ -203,6 +213,14 @@ class Compose
         return $this;
     }
 
+    public function format(bool $pint = true, bool $rector = false): static
+    {
+        $this->formatWithPint = $pint;
+        $this->formatWithRector = $rector;
+
+        return $this;
+    }
+
     public function before(Closure $callback): static
     {
         $this->beforeCallbacks[] = $callback;
@@ -259,6 +277,8 @@ class Compose
             fresh: $this->fresh,
             autoCommit: $this->commitAutomatically,
             smartCommit: $this->commitUsingAI,
+            formatWithPint: $this->formatWithPint,
+            formatWithRector: $this->formatWithRector,
             steps: $this->steps,
             beforeCallbacks: $this->beforeCallbacks,
             afterCallbacks: $this->afterCallbacks,

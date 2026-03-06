@@ -13,5 +13,6 @@ class ActionCompleted
         public readonly Action $action,
         public readonly ActionResult $result,
         public readonly bool $autoCommit = false,
+        public readonly bool $codeQuality = false,
     ) {}
 }

@@ -40,6 +40,8 @@ class RunCommand extends Command
         ?string $from = null,
         #[Option(name: 'no-commit', description: 'Skip all git commits')]
         bool $noCommit = false,
+        #[Option(name: 'no-format', description: 'Skip code quality formatting (Pint/Rector)')]
+        bool $noFormat = false,
         ?SymfonyStyle $io = null,
     ): int {
         if ($step !== null && $from !== null) {
@@ -69,6 +71,10 @@ class RunCommand extends Command
 
         if ($noCommit) {
             $config = $config->withOverrides(autoCommit: false);
+        }
+
+        if ($noFormat) {
+            $config = $config->withOverrides(formatWithPint: false, formatWithRector: false);
         }
 
         return $this->executeRecipe($config, $io);
@@ -194,7 +200,7 @@ class RunCommand extends Command
         });
 
         $dispatcher->listen(ActionExecuting::class, function (ActionExecuting $event) use ($io): void {
-            if ($event->autoCommit) {
+            if ($event->autoCommit || $event->codeQuality) {
                 $io->text("  <fg=gray>▸ {$event->action->describe()}</>");
 
                 return;
@@ -218,7 +224,7 @@ class RunCommand extends Command
                 $duration = ' ('.number_format($event->result->duration, 2).'s)';
             }
 
-            if ($event->autoCommit) {
+            if ($event->autoCommit || $event->codeQuality) {
                 $io->text("  <fg=gray>✓ {$event->action->describe()}{$duration}</>");
 
                 return;
@@ -252,6 +258,16 @@ class RunCommand extends Command
 
             if ($event->autoCommit) {
                 $io->text("  <fg=gray>✗ {$event->action->describe()}{$duration} (skipped)</>");
+
+                return;
+            }
+
+            if ($event->codeQuality) {
+                $io->text("  <fg=yellow>⚠</> {$event->action->describe()}<fg=gray>{$duration}</> <fg=yellow>(warning)</>");
+
+                if ($event->result->errorOutput !== '') {
+                    $io->text("    <fg=yellow>{$event->result->errorOutput}</>");
+                }
 
                 return;
             }

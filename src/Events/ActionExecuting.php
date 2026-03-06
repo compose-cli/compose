@@ -11,5 +11,6 @@ class ActionExecuting
     public function __construct(
         public readonly Action $action,
         public readonly bool $autoCommit = false,
+        public readonly bool $codeQuality = false,
     ) {}
 }

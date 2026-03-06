@@ -18,6 +18,8 @@ final class RecipeConfig
         public readonly bool $fresh,
         public readonly bool $autoCommit,
         public readonly bool $smartCommit,
+        public readonly bool $formatWithPint,
+        public readonly bool $formatWithRector,
         /** @var Step[] */
         public readonly array $steps,
         /** @var callable[] */
@@ -37,8 +39,12 @@ final class RecipeConfig
     /**
      * Create a modified copy of this config with selective overrides.
      */
-    public function withOverrides(?bool $autoCommit = null, ?array $steps = null): static
-    {
+    public function withOverrides(
+        ?bool $autoCommit = null,
+        ?bool $formatWithPint = null,
+        ?bool $formatWithRector = null,
+        ?array $steps = null,
+    ): static {
         return new self(
             name: $this->name,
             taskType: $this->taskType,
@@ -47,6 +53,8 @@ final class RecipeConfig
             fresh: $this->fresh,
             autoCommit: $autoCommit ?? $this->autoCommit,
             smartCommit: $this->smartCommit,
+            formatWithPint: $formatWithPint ?? $this->formatWithPint,
+            formatWithRector: $formatWithRector ?? $this->formatWithRector,
             steps: $steps ?? $this->steps,
             beforeCallbacks: $this->beforeCallbacks,
             afterCallbacks: $this->afterCallbacks,

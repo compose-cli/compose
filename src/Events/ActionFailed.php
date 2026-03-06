@@ -14,5 +14,6 @@ class ActionFailed
         public readonly ActionResult $result,
         public readonly bool $warned = false,
         public readonly bool $autoCommit = false,
+        public readonly bool $codeQuality = false,
     ) {}
 }

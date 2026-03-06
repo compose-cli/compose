@@ -8,6 +8,8 @@ use Compose\Actions\Action;
 use Compose\Actions\Git\GitAdd;
 use Compose\Actions\Git\GitCommit;
 use Compose\Actions\Git\GitInit;
+use Compose\Actions\Quality\PintFormat;
+use Compose\Actions\Quality\RectorProcess;
 use Compose\Contracts\CommitMessageGenerator;
 use Compose\Enums\FailureStrategy;
 use Compose\Events\ActionCompleted;
@@ -100,6 +102,10 @@ class Runner
 
             $isBaseCloneStep = $config->hasBase && $i === 0;
 
+            if ($stepResult->successful && ! $isBaseCloneStep) {
+                $this->runCodeQuality($config, $context);
+            }
+
             if ($config->autoCommit && $stepResult->successful && ! $isBaseCloneStep) {
                 $this->autoCommit($step, $context, $stepResult);
             }
@@ -119,9 +125,10 @@ class Runner
     {
         $projectContext = $config->context;
         $stepPlans = [];
+        $isBaseCloneStep = fn (int $i): bool => $config->hasBase && $i === 0;
 
         foreach ($config->steps as $i => $step) {
-            $context = ($config->hasBase && $i === 0) ? $config->baseContext : $projectContext;
+            $context = $isBaseCloneStep($i) ? $config->baseContext : $projectContext;
 
             $step->resolveOperations();
 
@@ -132,6 +139,18 @@ class Runner
                 $action->withContext($context);
                 $commands[] = $action->describe();
                 $rollbackable[] = $action->canBeRolledBack();
+            }
+
+            if (! $isBaseCloneStep($i)) {
+                if ($config->formatWithRector) {
+                    $commands[] = (new RectorProcess)->withContext($context)->describe();
+                    $rollbackable[] = false;
+                }
+
+                if ($config->formatWithPint) {
+                    $commands[] = (new PintFormat)->withContext($context)->describe();
+                    $rollbackable[] = false;
+                }
             }
 
             $stepPlans[] = new StepPlan(
@@ -241,6 +260,64 @@ class Runner
             $this->dispatcher->dispatch(new ActionCompleted($action, $result, autoCommit: true));
         } else {
             $this->dispatcher->dispatch(new ActionFailed($action, $result, warned: true, autoCommit: true));
+        }
+    }
+
+    /**
+     * Run code quality tools (Rector, then Pint) after a successful step.
+     */
+    private function runCodeQuality(RecipeConfig $config, RecipeContext $context): void
+    {
+        if ($config->formatWithRector) {
+            $this->runQualityAction(
+                (new RectorProcess)->withContext($context),
+                $context,
+            );
+        }
+
+        if ($config->formatWithPint) {
+            $this->runQualityAction(
+                (new PintFormat)->withContext($context),
+                $context,
+            );
+        }
+    }
+
+    /**
+     * Execute a single code quality action, firing lifecycle events.
+     *
+     * If the tool is not installed in the project, a warning is dispatched
+     * without attempting to run the command.
+     */
+    private function runQualityAction(PintFormat|RectorProcess $action, RecipeContext $context): void
+    {
+        $action->allowFailure = true;
+
+        if (! $action->isInstalled()) {
+            $result = ActionResult::failure(
+                errorOutput: $action->notInstalledMessage(),
+                command: [],
+            );
+
+            $this->dispatcher->dispatch(new ActionFailed($action, $result, warned: true, codeQuality: true));
+
+            return;
+        }
+
+        $this->dispatcher->dispatch(new ActionExecuting($action, codeQuality: true));
+
+        $command = $action->command();
+
+        $result = $this->executor->execute(
+            $command->toArray(),
+            $context->workingDirectory,
+            $command->getTimeout(),
+        );
+
+        if ($result->successful) {
+            $this->dispatcher->dispatch(new ActionCompleted($action, $result, codeQuality: true));
+        } else {
+            $this->dispatcher->dispatch(new ActionFailed($action, $result, warned: true, codeQuality: true));
         }
     }
 }
