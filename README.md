@@ -115,6 +115,13 @@ Dry-run to preview the plan without executing:
 php compose.php compose recipe.php --dry
 ```
 
+Skip auto-commit or code quality formatting:
+
+```bash
+php compose.php run recipe.php --no-commit
+php compose.php run recipe.php --no-format
+```
+
 ## The Recipe File
 
 A recipe is a PHP file that returns a `Compose` instance. You configure the project, then define steps. Each step receives a `Step` object with a fluent API for declaring operations.
@@ -142,6 +149,7 @@ compose('My App')
     ->in('my-app', fresh: true)      // Working directory (fresh: delete first)
     ->base(repo: 'https://...')       // Clone a base repo
     ->node(Node::Pnpm)               // Use pnpm instead of npm
+    ->format()                        // Run Pint after each step
     ->commit(automatically: true);    // Git commit after each step
 ```
 
@@ -151,6 +159,7 @@ compose('My App')
 compose('Add Permissions', type: TaskType::NewFeature)
     ->inCwd()                                    // Use current working directory
     ->branch('feature/permissions')              // Create and checkout a new branch
+    ->format(pint: true, rector: true)           // Run Rector then Pint after each step
     ->commit(automatically: true);               // Git commit after each step
 ```
 
@@ -469,6 +478,27 @@ This stages all changes (`git add -A`) and commits. When `commit(automatically: 
 
 **Branching** is configured at the recipe level with `branch()`, which prepends a branch step before your user-defined steps. For new projects, `base()` serves the same role — it prepends a clone step. You don't call these on `Step` directly.
 
+### Code Quality
+
+Compose can automatically run [Laravel Pint](https://laravel.com/docs/pint) and [Rector](https://getrector.com/) after each successful step. Enable this at the recipe level:
+
+```php
+compose('My App')
+    ->format()                          // Pint only (default)
+    ->format(rector: true)              // Pint + Rector
+    ->format(pint: false, rector: true) // Rector only
+```
+
+When both are enabled, Rector runs first (may introduce formatting issues), then Pint cleans up. Both run before auto-commit, so the committed code is already formatted.
+
+Compose does **not** bundle Pint or Rector. It uses whatever is installed in your project's `vendor/bin/`. If a tool is enabled but not installed, a warning is shown with install instructions — the step itself still succeeds.
+
+Disable at the CLI with `--no-format`:
+
+```bash
+php compose.php run recipe.php --no-format
+```
+
 ### Failure Handling
 
 Actions can be marked as non-fatal:
@@ -521,6 +551,7 @@ Every action that can be undone defines a rollback. The `RollbackManager` tracks
 | `ConfigAction` | Restore original file contents |
 | `DeleteFile` | No rollback (destructive) |
 | `ComposerRun`, `ArtisanAction` | No rollback (side effects unknown) |
+| `PintFormat`, `RectorProcess` | No rollback (run outside the step pipeline) |
 
 ### Events
 
@@ -531,6 +562,8 @@ StepStarting → ActionExecuting → ActionCompleted/ActionFailed → StepComple
 ```
 
 On rollback: `RollbackStarting → RollbackCompleted`.
+
+After each step, code quality tools (if enabled) and auto-commit actions also dispatch `ActionExecuting`/`ActionCompleted`/`ActionFailed` with `codeQuality: true` or `autoCommit: true` flags respectively. This lets event listeners render them differently from step actions.
 
 The CLI command wires these to `SymfonyStyle` output for colored terminal feedback.
 
@@ -626,11 +659,14 @@ src/
 │   │   └── TestAction.php         # Run artisan test --filter (command-based)
 │   ├── Verify/
 │   │   └── VerifyAction.php       # Closure/string assertion (direct execution)
-│   └── Node/
-│       ├── NodeAction.php         # Abstract base (adapts to npm/yarn/pnpm/bun)
-│       ├── NodeInstall.php
-│       ├── NodeRemove.php
-│       └── NodeRun.php
+│   ├── Node/
+│   │   ├── NodeAction.php         # Abstract base (adapts to npm/yarn/pnpm/bun)
+│   │   ├── NodeInstall.php
+│   │   ├── NodeRemove.php
+│   │   └── NodeRun.php
+│   └── Quality/
+│       ├── PintFormat.php         # Run vendor/bin/pint (checks isInstalled)
+│       └── RectorProcess.php      # Run vendor/bin/rector process (checks isInstalled)
 │
 ├── Builders/
 │   ├── Artisan.php                # Batch artisan operations builder (+ config)
@@ -654,6 +690,7 @@ src/
 │   ├── GitOperation.php
 │   ├── Node.php                   # npm, yarn, pnpm, bun
 │   ├── PackageOperation.php
+│   ├── QualityOperation.php
 │   ├── TaskType.php
 │   └── VerifyOperation.php
 │
@@ -777,6 +814,7 @@ The `type` parameter controls which configuration methods are available:
 | `branch` | `branch(string $name, bool $create = true)` | Create and checkout (or just checkout) a branch (NewFeature/Refactoring only). |
 | `node` | `node(Node $manager)` | Set node package manager: `Node::Npm`, `Node::Yarn`, `Node::Pnpm`, `Node::Bun`. |
 | `commit` | `commit(bool $automatically = false, bool $smart = false)` | Auto-commit after each step. `smart: true` uses AI for commit messages. |
+| `format` | `format(bool $pint = true, bool $rector = false)` | Run code quality tools after each step. Uses project-installed binaries. |
 | `step` | `step(string $name, Closure $callback): static` | Define a step. Closure receives `Step`. Returns `$this` for chaining. |
 | `plan` | `plan(): Plan` | Generate a dry-run plan without executing. |
 | `run` | `run(?EventDispatcher $dispatcher = null): RunResult` | Execute the recipe. |
@@ -1203,6 +1241,8 @@ return compose('API Service')
 | `GitAdd/Clone/Commit/Init` | `GitOperation` | `Clone`, `Init`, `Add`, `Commit`, `Branch`, `Checkout` |
 | `VerifyAction` | `VerifyOperation` | `Verify` |
 | `TestAction` | `VerifyOperation` | `Test` |
+| `PintFormat` | `QualityOperation` | `Format` |
+| `RectorProcess` | `QualityOperation` | `Refactor` |
 
 ## Node Manager Behavior
 
