@@ -4,13 +4,11 @@ This document tracks all planned refactors, fixes, and new features for Compose,
 
 ---
 
-## Priority 1 and 2 tasks complete
+## Priority 1 - complete
 
-## Priority 3: New Features — Deterministic Actions
+## Priority 2 - complete
 
-These extend the `Step` API with deterministic operations. Each is a new Action class + Step method + tests. They're listed roughly in order of implementation difficulty and user value.
-
-### 3.1, 3.2, 3.3, 3.4, 3.5 tasks complete
+## Priority 3 - complete
 
 ## Priority 4 - complete
 
@@ -52,11 +50,7 @@ compose('My App')->use(Permissions::withRoles('admin', 'editor'));
 
 ---
 
-## Priority 6: Control Flow & Verification - complete
-
-### 6.1 Conditional Execution - complete
-
-### 6.2 Verification Gates - complete
+## Priority 6 - complete
 
 ## Priority 7: AI Integration
 

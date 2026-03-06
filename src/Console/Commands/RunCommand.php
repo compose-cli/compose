@@ -14,6 +14,10 @@ use Compose\Events\RollbackStarting;
 use Compose\Events\StepCompleted;
 use Compose\Events\StepFailed;
 use Compose\Events\StepStarting;
+use Compose\Execution\ProcessExecutor;
+use Compose\Execution\RecipeConfig;
+use Compose\Execution\Runner;
+use Compose\Step;
 use Symfony\Component\Console\Attribute\Argument;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Attribute\Option;
@@ -21,50 +25,63 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
-    name: 'compose',
-    description: 'Compose your recipe',
-    help: 'This command will compose your recipe',
+    name: 'run',
+    description: 'Execute a recipe',
+    help: 'This command will execute your recipe',
 )]
-class ComposeCommand extends Command
+class RunCommand extends Command
 {
     public function __invoke(
         #[Argument(description: 'The recipe to compose')]
         string $recipe = 'recipe.php',
-        #[Option(description: 'Should we dry run the composition?')]
-        bool $dry = false,
+        #[Option(description: 'Run only a specific step (by name or 1-based number)')]
+        ?string $step = null,
+        #[Option(description: 'Resume from a specific step (by name or 1-based number)')]
+        ?string $from = null,
+        #[Option(name: 'no-commit', description: 'Skip all git commits')]
+        bool $noCommit = false,
         ?SymfonyStyle $io = null,
     ): int {
-        $compose = require $recipe;
+        if ($step !== null && $from !== null) {
+            $io?->error('The --step and --from options are mutually exclusive.');
 
-        if (! $compose instanceof Compose) {
-            throw new \RuntimeException('The recipe must return a Compose object.');
+            return self::FAILURE;
         }
 
-        if ($dry) {
-            return $this->showPlan($compose, $io);
+        $compose = Compose::fromFile($recipe);
+        $config = $compose->toConfig();
+
+        if ($step !== null) {
+            $config = $this->filterToStep($config, $step, $io);
+
+            if ($config === null) {
+                return self::FAILURE;
+            }
         }
 
-        return $this->executeRecipe($compose, $io);
+        if ($from !== null) {
+            $config = $this->filterFromStep($config, $from, $io);
+
+            if ($config === null) {
+                return self::FAILURE;
+            }
+        }
+
+        if ($noCommit) {
+            $config = $config->withOverrides(autoCommit: false);
+        }
+
+        return $this->executeRecipe($config, $io);
     }
 
-    private function showPlan(Compose $compose, ?SymfonyStyle $io): int
-    {
-        $plan = $compose->plan();
-
-        if ($io !== null) {
-            $io->text((string) $plan);
-        }
-
-        return self::SUCCESS;
-    }
-
-    private function executeRecipe(Compose $compose, ?SymfonyStyle $io): int
+    private function executeRecipe(RecipeConfig $config, ?SymfonyStyle $io): int
     {
         $dispatcher = new EventDispatcher;
 
         $this->registerEventListeners($dispatcher, $io);
 
-        $result = $compose->run($dispatcher);
+        $runner = new Runner(new ProcessExecutor, $dispatcher);
+        $result = $runner->run($config);
 
         if ($result->hasWarnings && $io !== null) {
             $warningCount = count($result->warnings);
@@ -80,6 +97,75 @@ class ComposeCommand extends Command
         $io?->error("Failed at step {$result->failedAtStep}. {$result->stepsCompleted}/{$result->stepsTotal} steps completed.");
 
         return self::FAILURE;
+    }
+
+    /**
+     * Resolve a step identifier (name or 1-based number) to an array index.
+     *
+     * @param  Step[]  $steps
+     */
+    private function resolveStepIndex(array $steps, string $identifier): ?int
+    {
+        if (ctype_digit($identifier)) {
+            $index = (int) $identifier - 1;
+
+            if ($index >= 0 && $index < count($steps)) {
+                return $index;
+            }
+
+            return null;
+        }
+
+        foreach ($steps as $i => $step) {
+            if ($step->name === $identifier) {
+                return $i;
+            }
+        }
+
+        return null;
+    }
+
+    private function filterToStep(RecipeConfig $config, string $identifier, ?SymfonyStyle $io): ?RecipeConfig
+    {
+        $index = $this->resolveStepIndex($config->steps, $identifier);
+
+        if ($index === null) {
+            $this->showStepNotFound($identifier, $config->steps, $io);
+
+            return null;
+        }
+
+        return $config->withOverrides(steps: [$config->steps[$index]]);
+    }
+
+    private function filterFromStep(RecipeConfig $config, string $identifier, ?SymfonyStyle $io): ?RecipeConfig
+    {
+        $index = $this->resolveStepIndex($config->steps, $identifier);
+
+        if ($index === null) {
+            $this->showStepNotFound($identifier, $config->steps, $io);
+
+            return null;
+        }
+
+        return $config->withOverrides(steps: array_slice($config->steps, $index));
+    }
+
+    /**
+     * @param  Step[]  $steps
+     */
+    private function showStepNotFound(string $identifier, array $steps, ?SymfonyStyle $io): void
+    {
+        $io?->error("Step '{$identifier}' not found.");
+
+        if ($io !== null && $steps !== []) {
+            $io->text('Available steps:');
+
+            foreach ($steps as $i => $step) {
+                $number = $i + 1;
+                $io->text("  {$number}. {$step->name}");
+            }
+        }
     }
 
     private function registerEventListeners(EventDispatcher $dispatcher, ?SymfonyStyle $io): void

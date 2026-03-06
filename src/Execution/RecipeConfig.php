@@ -27,4 +27,22 @@ final class RecipeConfig
     public bool $hasBase {
         get => $this->baseContext !== null;
     }
+
+    /**
+     * Create a modified copy of this config with selective overrides.
+     */
+    public function withOverrides(?bool $autoCommit = null, ?array $steps = null): static
+    {
+        return new self(
+            name: $this->name,
+            context: $this->context,
+            baseContext: $this->baseContext,
+            fresh: $this->fresh,
+            autoCommit: $autoCommit ?? $this->autoCommit,
+            smartCommit: $this->smartCommit,
+            steps: $steps ?? $this->steps,
+            beforeCallbacks: $this->beforeCallbacks,
+            afterCallbacks: $this->afterCallbacks,
+        );
+    }
 }

@@ -630,7 +630,8 @@ src/
 │
 ├── Console/
 │   └── Commands/
-│       └── ComposeCommand.php     # CLI entry point
+│       ├── RunCommand.php         # CLI: execute a recipe
+│       └── PlanCommand.php        # CLI: preview a recipe (dry-run)
 │
 └── Exceptions/
     └── DangerousPathException.php

@@ -2,7 +2,8 @@
 
 require __DIR__.'/vendor/autoload.php';
 
-use Compose\Console\Commands\ComposeCommand;
+use Compose\Console\Commands\PlanCommand;
+use Compose\Console\Commands\RunCommand;
 use Symfony\Component\Console\Application;
 
 $application = new Application(
@@ -11,10 +12,12 @@ $application = new Application(
 );
 
 $commands = [
-    new ComposeCommand,
+    new RunCommand,
+    new PlanCommand,
 ];
 
 $application->addCommands($commands);
+$application->setDefaultCommand('run');
 
 $exitCode = $application->run();
 

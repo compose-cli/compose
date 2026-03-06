@@ -277,6 +277,24 @@ class Compose
         );
     }
 
+    /**
+     * Load a Compose instance from a recipe file.
+     */
+    public static function fromFile(string $path): static
+    {
+        if (! file_exists($path)) {
+            throw new \RuntimeException("Recipe file not found: {$path}");
+        }
+
+        $compose = require $path;
+
+        if (! $compose instanceof static) {
+            throw new \RuntimeException('The recipe must return a Compose object.');
+        }
+
+        return $compose;
+    }
+
     // ------------------------------------------------------------------
     // Getters
     // ------------------------------------------------------------------
