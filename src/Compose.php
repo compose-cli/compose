@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Compose;
 
 use Closure;
+use Compose\Actions\Git\GitBranch;
+use Compose\Actions\Git\GitCheckout;
 use Compose\Actions\Git\GitClone;
 use Compose\Contracts\AI;
 use Compose\Enums\FailureStrategy;
@@ -107,14 +109,27 @@ class Compose
 
     public function in(string $target = '.', bool $fresh = false): static
     {
+        if ($fresh && $this->resolvedType() !== TaskType::NewProject) {
+            throw new \LogicException('fresh mode can only be used with TaskType::NewProject.');
+        }
+
         $this->target = $target;
         $this->fresh = $fresh;
 
         return $this;
     }
 
+    public function inCwd(): static
+    {
+        return $this->in((string) getcwd());
+    }
+
     public function base(string $repo, ?string $branch = null): static
     {
+        if ($this->resolvedType() !== TaskType::NewProject) {
+            throw new \LogicException('base() can only be used with TaskType::NewProject. Use branch() for existing projects.');
+        }
+
         $this->baseRepo = $repo;
         $this->baseBranch = $branch;
         $this->projectName = slugify($this->getName());
@@ -126,6 +141,25 @@ class Compose
             description: "Clone {$repo}".($branch ? " (branch: {$branch})" : '')." into {$directory}",
             callback: function (Step $step) use ($repo, $branch, $directory): void {
                 $step->addOperation(new GitClone(repo: $repo, branch: $branch, directory: $directory));
+            },
+        ));
+
+        return $this;
+    }
+
+    public function branch(string $name, bool $create = true): static
+    {
+        if ($this->resolvedType() === TaskType::NewProject) {
+            throw new \LogicException('branch() is for existing projects. Use base() for new projects.');
+        }
+
+        array_unshift($this->steps, new Step(
+            name: 'Switch to branch',
+            description: ($create ? 'Create and checkout' : 'Checkout')." branch {$name}",
+            callback: function (Step $step) use ($name, $create): void {
+                $step->addOperation(
+                    $create ? new GitBranch(branch: $name) : new GitCheckout(branch: $name),
+                );
             },
         ));
 
@@ -219,6 +253,7 @@ class Compose
     {
         return new RecipeConfig(
             name: $this->getName(),
+            taskType: $this->resolvedType(),
             context: $this->getContext(),
             baseContext: $this->baseRepo !== null ? $this->getBaseContext() : null,
             fresh: $this->fresh,
@@ -302,6 +337,18 @@ class Compose
     public function getName(): string
     {
         return $this->name ?? 'default';
+    }
+
+    public function getTaskType(): TaskType
+    {
+        return $this->resolvedType();
+    }
+
+    protected function resolvedType(): TaskType
+    {
+        return $this->type instanceof TaskType
+            ? $this->type
+            : TaskType::from($this->type);
     }
 
     public function getProjectName(): ?string

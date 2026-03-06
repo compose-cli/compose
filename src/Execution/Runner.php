@@ -47,12 +47,12 @@ class Runner
             $callback();
         }
 
-        if ($config->fresh) {
+        if ($config->fresh && $config->isNewProject) {
             $this->guardAgainstDangerousPath($projectContext->workingDirectory);
             Filesystem::deleteDirectory($projectContext->workingDirectory);
         }
 
-        if ($config->autoCommit && ! $config->hasBase) {
+        if ($config->autoCommit && ! $config->hasBase && $config->isNewProject) {
             $this->gitInit($projectContext);
         }
 

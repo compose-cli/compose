@@ -2,6 +2,7 @@
 
 use Compose\Builders\Artisan;
 use Compose\Enums\FailureStrategy;
+use Compose\Enums\TaskType;
 use Compose\Events\ActionCompleted;
 use Compose\Events\ActionExecuting;
 use Compose\Events\ActionFailed;
@@ -708,6 +709,131 @@ describe('Runner preflight', function (): void {
         expect($result->successful)->toBeTrue();
 
         ProcessExecutor::assertNotExecuted(['php', 'artisan', '--version']);
+    });
+
+});
+
+describe('Runner feature mode', function (): void {
+
+    afterEach(function (): void {
+        ProcessExecutor::reset();
+    });
+
+    it('does not run git init for NewFeature type', function (): void {
+        ProcessExecutor::fake();
+
+        $recipe = compose('Feature Recipe', type: TaskType::NewFeature)
+            ->in('.')
+            ->commit(automatically: true);
+
+        $recipe->step('Install', fn (Step $step) => $step->composer(install: ['pkg']));
+
+        $result = $recipe->run();
+
+        expect($result->successful)->toBeTrue();
+
+        ProcessExecutor::assertNotExecuted(['git', 'init']);
+        ProcessExecutor::assertExecuted(['git', 'add', '-A']);
+        ProcessExecutor::assertExecuted(['git', 'commit', '-m', 'compose: Install']);
+    });
+
+    it('does not run git init for Refactoring type', function (): void {
+        ProcessExecutor::fake();
+
+        $recipe = compose('Refactor Recipe', type: TaskType::Refactoring)
+            ->in('.')
+            ->commit(automatically: true);
+
+        $recipe->step('Cleanup', fn (Step $step) => $step->composer(remove: ['old-pkg']));
+
+        $result = $recipe->run();
+
+        expect($result->successful)->toBeTrue();
+
+        ProcessExecutor::assertNotExecuted(['git', 'init']);
+    });
+
+    it('does not delete directory for fresh mode with non-NewProject type', function (): void {
+        ProcessExecutor::fake();
+
+        $tempDir = sys_get_temp_dir().DIRECTORY_SEPARATOR.'compose_feature_fresh_'.uniqid();
+        mkdir($tempDir, 0755, true);
+
+        file_put_contents($tempDir.DIRECTORY_SEPARATOR.'marker.txt', 'exists');
+
+        $recipe = compose('Feature Recipe', type: TaskType::NewProject)
+            ->in($tempDir, fresh: true);
+
+        $recipe->step('Install', fn (Step $step) => $step->composer(install: ['pkg']));
+        $recipe->run();
+
+        expect(file_exists($tempDir.DIRECTORY_SEPARATOR.'marker.txt'))->toBeFalse();
+
+        if (is_dir($tempDir)) {
+            rmdir($tempDir);
+        }
+    });
+
+    it('throws when using base() with NewFeature type', function (): void {
+        compose('Feature Recipe', type: TaskType::NewFeature)
+            ->base('https://github.com/laravel/laravel.git');
+    })->throws(\LogicException::class, 'base() can only be used with TaskType::NewProject');
+
+    it('throws when using fresh mode with NewFeature type', function (): void {
+        compose('Feature Recipe', type: TaskType::NewFeature)
+            ->in('.', fresh: true);
+    })->throws(\LogicException::class, 'fresh mode can only be used with TaskType::NewProject');
+
+    it('throws when using branch() with NewProject type', function (): void {
+        compose('New Project', type: TaskType::NewProject)
+            ->branch('feature/test');
+    })->throws(\LogicException::class, 'branch() is for existing projects');
+
+    it('allows branch() with NewFeature type', function (): void {
+        ProcessExecutor::fake();
+
+        $recipe = compose('Feature Recipe', type: TaskType::NewFeature)
+            ->in('.')
+            ->branch('feature/permissions');
+
+        $config = $recipe->toConfig();
+
+        expect($config->steps)->toHaveCount(1);
+        expect($config->steps[0]->name)->toBe('Switch to branch');
+    });
+
+    it('prepends branch step before user steps', function (): void {
+        ProcessExecutor::fake();
+
+        $recipe = compose('Feature Recipe', type: TaskType::NewFeature)
+            ->in('.');
+
+        $recipe->step('Install', fn (Step $step) => $step->composer(install: ['pkg']));
+        $recipe->branch('feature/test');
+
+        $config = $recipe->toConfig();
+
+        expect($config->steps)->toHaveCount(2);
+        expect($config->steps[0]->name)->toBe('Switch to branch');
+        expect($config->steps[1]->name)->toBe('Install');
+    });
+
+    it('passes taskType through RecipeConfig', function (): void {
+        $recipe = compose('Feature Recipe', type: TaskType::NewFeature)->in('.');
+
+        $config = $recipe->toConfig();
+
+        expect($config->taskType)->toBe(TaskType::NewFeature);
+        expect($config->isNewProject)->toBeFalse();
+    });
+
+    it('defaults to NewProject taskType', function (): void {
+        $recipe = compose('Default Recipe')->in('.');
+
+        $config = $recipe->toConfig();
+
+        expect($config->taskType)->toBe(TaskType::NewProject);
+        expect($config->isNewProject)->toBeTrue();
     });
 
 });

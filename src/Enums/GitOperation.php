@@ -12,4 +12,6 @@ enum GitOperation: string implements Operation
     case Init = 'init';
     case Add = 'add';
     case Commit = 'commit';
+    case Branch = 'branch';
+    case Checkout = 'checkout';
 }

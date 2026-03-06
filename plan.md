@@ -142,27 +142,7 @@ $step->instruct('Create a dashboard with team memberships', fn (Instruct $i) => 
 
 ---
 
-## Priority 9: CLI Enhancements
-
-### 9.1 Additional CLI Commands - complete
-
-### 9.2 CLI Output Polish
-
-- [ ] Add ✨ marker for AI-directed steps in output
-- [ ] Add spinner/progress indicator for long-running actions
-- [ ] Add timing information per step
-- [ ] Color-code: green for success, red for failure, yellow for warnings, gray for auto-commit
-- [ ] Show summary at the end: steps completed, time elapsed, files changed
-
-### 9.3 Default Recipe Filename
-
-**Why:** The `ComposeCommand` defaults to `recipe.php` but the docs show `compose.php` as the convention. Support both with a fallback chain.
-
-- [ ] Change default to look for `compose.php` first, then `recipe.php`
-- [ ] If neither exists, show a helpful error message
-- [ ] Update documentation to recommend `compose.php` as the primary filename
-
----
+## Priority 9: CLI Enhancements - complete
 
 ## Dependency Notes
 

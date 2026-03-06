@@ -1,14 +1,14 @@
 # Compose
 
-Declarative scaffolding for PHP projects.
+Declarative scaffolding and automation for PHP projects.
 
-Compose lets you describe a project setup as a single PHP recipe file — packages, config, file operations, artisan commands — and execute it with one command. Every action is rollbackable, every step is testable, and the recipe reads top to bottom like documentation.
+Compose lets you describe project setup and feature workflows as a single PHP recipe file — packages, config, file operations, artisan commands — and execute it with one command. Every action is rollbackable, every step is testable, and the recipe reads top to bottom like documentation.
 
 ## Why
 
-Setting up a new Laravel project is a 45-minute ritual. Install packages, publish configs, modify models, set up CI, configure environment files — all stuff you've done a hundred times. Compose captures that ritual as code.
+Setting up a new Laravel project is a 45-minute ritual. Adding a complex feature is a 20-minute checklist. Install packages, publish configs, modify models, set up CI, configure environment files — all stuff you've done a hundred times. Compose captures that ritual as code.
 
-A recipe file is the `dotfiles` equivalent for PHP projects. One file, readable by anyone, shareable as a Gist, runnable in seconds.
+A recipe file is the `dotfiles` equivalent for PHP projects. One file, readable by anyone, shareable as a Gist, runnable in seconds. Use it to scaffold a new project from scratch, or to automate adding a feature to an existing one.
 
 ## Installation
 
@@ -18,7 +18,9 @@ composer require compose/compose
 
 ## Quick Start
 
-Create a `recipe.php` in your project root:
+### New Project Scaffolding
+
+Create a `recipe.php` to scaffold a project from scratch:
 
 ```php
 <?php
@@ -66,7 +68,42 @@ return compose('My App')
     });
 ```
 
-Run it:
+### Feature Development in an Existing Project
+
+Create a recipe to add a feature to your current project:
+
+```php
+<?php
+
+use Compose\Step;
+use Compose\Enums\TaskType;
+use Compose\Builders\Artisan;
+use Compose\Builders\ModifyBuilder;
+
+return compose('Add Permissions', type: TaskType::NewFeature)
+    ->inCwd()
+    ->branch('feature/permissions')
+    ->commit(automatically: true)
+    ->step('Install & Configure', function (Step $step): void {
+        $step
+            ->composer(install: 'spatie/laravel-permission')
+            ->artisan(function (Artisan $a): void {
+                $a->publish(provider: 'Spatie\Permission\PermissionServiceProvider')
+                  ->config('permission.teams', true)
+                  ->migrate();
+            })
+            ->modify('app/Models/User.php', fn (ModifyBuilder $m) => $m
+                ->addTrait('Spatie\Permission\Traits\HasRoles')
+            );
+    })
+    ->step('Verify', function (Step $step): void {
+        $step
+            ->verify(fn () => file_exists('config/permission.php'))
+            ->test('tests/Feature/PermissionTest.php');
+    });
+```
+
+### Running a Recipe
 
 ```bash
 php compose.php compose recipe.php
@@ -82,7 +119,23 @@ php compose.php compose recipe.php --dry
 
 A recipe is a PHP file that returns a `Compose` instance. You configure the project, then define steps. Each step receives a `Step` object with a fluent API for declaring operations.
 
+### Task Types
+
+Every recipe has a task type that controls which configuration methods are available and how the runner behaves:
+
+```php
+use Compose\Enums\TaskType;
+
+compose('My App', type: TaskType::NewProject)    // Scaffold from scratch (default)
+compose('Add Auth', type: TaskType::NewFeature)  // Add a feature to an existing project
+compose('Cleanup', type: TaskType::Refactoring)  // Refactor inside an existing project
+```
+
+`NewProject` enables `base()` and `fresh` mode. `NewFeature` and `Refactoring` enable `branch()` and skip git init — they assume you're already inside a git repository.
+
 ### Project Configuration
+
+**New project scaffolding:**
 
 ```php
 compose('My App')
@@ -91,6 +144,17 @@ compose('My App')
     ->node(Node::Pnpm)               // Use pnpm instead of npm
     ->commit(automatically: true);    // Git commit after each step
 ```
+
+**Feature development in an existing project:**
+
+```php
+compose('Add Permissions', type: TaskType::NewFeature)
+    ->inCwd()                                    // Use current working directory
+    ->branch('feature/permissions')              // Create and checkout a new branch
+    ->commit(automatically: true);               // Git commit after each step
+```
+
+`branch()` accepts an optional `create` parameter: `branch('existing-branch', create: false)` checks out an existing branch without creating it.
 
 ### Steps
 
@@ -403,6 +467,8 @@ $step->commit('feat: initial project setup');
 
 This stages all changes (`git add -A`) and commits. When `commit(automatically: true)` is set on the recipe, the runner commits after each successful step using either the step's message or a generated message.
 
+**Branching** is configured at the recipe level with `branch()`, which prepends a branch step before your user-defined steps. For new projects, `base()` serves the same role — it prepends a clone step. You don't call these on `Step` directly.
+
 ### Failure Handling
 
 Actions can be marked as non-fatal:
@@ -444,6 +510,8 @@ Every action that can be undone defines a rollback. The `RollbackManager` tracks
 | `ComposerInstall` | `composer remove` the packages |
 | `NodeInstall` | Uninstall the packages |
 | `GitClone` | Delete the cloned directory |
+| `GitBranch` | Checkout original branch, delete created branch |
+| `GitCheckout` | Checkout previous branch (`git checkout -`) |
 | `CreateFile` | Delete the file (or restore original if overwritten) |
 | `CopyFile` | Delete the copy (or restore original) |
 | `AppendFile` | Truncate the appended bytes |
@@ -549,6 +617,8 @@ src/
 │   │   └── DeleteFile.php         # Direct execution, no rollback
 │   ├── Git/
 │   │   ├── GitAdd.php
+│   │   ├── GitBranch.php            # Direct execution, rollback restores original branch
+│   │   ├── GitCheckout.php
 │   │   ├── GitClone.php
 │   │   ├── GitCommit.php
 │   │   └── GitInit.php
@@ -606,7 +676,7 @@ src/
 │   ├── StepResult.php
 │   ├── RunResult.php
 │   ├── StepContext.php            # Per-step execution state
-│   ├── RecipeConfig.php           # Extracted config value object
+│   ├── RecipeConfig.php           # Extracted config value object (includes taskType)
 │   ├── RollbackManager.php        # LIFO rollback tracking
 │   ├── Plan.php                   # Dry-run plan renderer
 │   ├── StepPlan.php
@@ -651,39 +721,60 @@ This section is structured context for language models. When a user asks you to 
 
 ## Recipe File Structure
 
-A recipe file is a PHP file that returns a `Compose` instance. It follows this structure:
+A recipe file is a PHP file that returns a `Compose` instance. There are two primary shapes depending on task type.
+
+**New project scaffolding:**
 
 ```php
 <?php
 
 use Compose\Step;
 use Compose\Enums\Node;
-use Compose\Enums\FailureStrategy;
 use Compose\Builders\Artisan;
-use Compose\Builders\ConfigBuilder;
-use Compose\Builders\EnvBuilder;
 use Compose\Builders\ModifyBuilder;
-use Compose\Builders\JsonModifyBuilder;
 
 return compose('Project Name')
-    // Configuration
     ->in('directory', fresh: true)
     ->base(repo: 'https://github.com/laravel/laravel.git', branch: '11.x')
     ->node(Node::Pnpm)
-    ->commit(automatically: true, smart: false)
-
-    // Steps
+    ->commit(automatically: true)
     ->step('Step Name', function (Step $step): void {
         $step->composer(install: ['package/name']);
     });
 ```
 
+**Feature development in an existing project:**
+
+```php
+<?php
+
+use Compose\Step;
+use Compose\Enums\TaskType;
+use Compose\Builders\ModifyBuilder;
+
+return compose('Feature Name', type: TaskType::NewFeature)
+    ->inCwd()
+    ->branch('feature/my-feature')
+    ->commit(automatically: true)
+    ->step('Step Name', function (Step $step): void {
+        $step->composer(install: ['package/name']);
+    });
+```
+
+The `type` parameter controls which configuration methods are available:
+
+- `TaskType::NewProject` (default) — enables `base()` and `fresh` mode, runs `git init` on auto-commit
+- `TaskType::NewFeature` — enables `branch()`, skips `git init` (assumes existing repo)
+- `TaskType::Refactoring` — same as `NewFeature`
+
 ## Compose Configuration Methods
 
 | Method | Signature | Purpose |
 |---|---|---|
-| `in` | `in(string $path, bool $fresh = false)` | Set working directory. `fresh: true` deletes it first. |
-| `base` | `base(string $repo, ?string $branch = null)` | Clone a base repository as the project foundation. |
+| `in` | `in(string $path, bool $fresh = false)` | Set working directory. `fresh: true` deletes it first (NewProject only). |
+| `inCwd` | `inCwd()` | Set working directory to the current working directory. |
+| `base` | `base(string $repo, ?string $branch = null)` | Clone a base repository as the project foundation (NewProject only). |
+| `branch` | `branch(string $name, bool $create = true)` | Create and checkout (or just checkout) a branch (NewFeature/Refactoring only). |
 | `node` | `node(Node $manager)` | Set node package manager: `Node::Npm`, `Node::Yarn`, `Node::Pnpm`, `Node::Bun`. |
 | `commit` | `commit(bool $automatically = false, bool $smart = false)` | Auto-commit after each step. `smart: true` uses AI for commit messages. |
 | `step` | `step(string $name, Closure $callback): static` | Define a step. Closure receives `Step`. Returns `$this` for chaining. |
@@ -967,7 +1058,53 @@ return compose('SaaS Starter')
     });
 ```
 
-### Example 2: API-Only Project
+### Example 2: Adding a Feature to an Existing Project
+
+```php
+<?php
+
+use Compose\Step;
+use Compose\Enums\TaskType;
+use Compose\Builders\Artisan;
+use Compose\Builders\ConfigBuilder;
+use Compose\Builders\ModifyBuilder;
+
+return compose('Add Team Permissions', type: TaskType::NewFeature)
+    ->inCwd()
+    ->branch('feature/team-permissions')
+    ->commit(automatically: true)
+
+    ->step('Install Packages', function (Step $step): void {
+        $step
+            ->composer(install: [
+                'spatie/laravel-permission',
+            ]);
+    })
+
+    ->step('Configure Permissions', function (Step $step): void {
+        $step
+            ->artisan(function (Artisan $a): void {
+                $a->publish(provider: 'Spatie\Permission\PermissionServiceProvider')
+                  ->config('permission', fn (ConfigBuilder $c) => $c
+                      ->set('teams', true)
+                      ->merge('guard_names', ['web', 'api']))
+                  ->migrate();
+            })
+            ->modify('app/Models/User.php', function (ModifyBuilder $m): void {
+                $m->addTrait('Spatie\Permission\Traits\HasRoles')
+                  ->addToArray('fillable', ['team_id']);
+            })
+            ->verify(fn () => file_exists('config/permission.php'));
+    })
+
+    ->step('Verify', function (Step $step): void {
+        $step
+            ->assert(fn () => file_exists('database/migrations'))
+            ->test('tests/Feature/PermissionTest.php');
+    });
+```
+
+### Example 3: API-Only Project
 
 ```php
 <?php
@@ -1028,25 +1165,29 @@ return compose('API Service')
 
 1. **Always return a `Compose` instance.** The file must `return compose(...)`.
 
-2. **Use named parameters.** `composer(install: ['pkg'])` not `composer(['pkg'])`.
+2. **Choose the right task type.** Use `TaskType::NewProject` (default) when scaffolding from scratch with `base()` and `fresh`. Use `TaskType::NewFeature` or `TaskType::Refactoring` when working inside an existing project with `branch()` and `inCwd()`.
 
-3. **Group related operations into steps.** Each step should represent a logical unit — "Auth", "Frontend", "CI", not "Install Package 1", "Install Package 2".
+3. **Use named parameters.** `composer(install: ['pkg'])` not `composer(['pkg'])`.
 
-4. **Use `allowFailure: true` for non-critical commands** like `node(run: 'build')` that might fail on a fresh project.
+4. **Group related operations into steps.** Each step should represent a logical unit — "Auth", "Frontend", "CI", not "Install Package 1", "Install Package 2".
 
-5. **Prefer `artisan()` with a builder for multiple artisan commands** rather than chaining several `->artisan('...')` calls.
+5. **Use `allowFailure: true` for non-critical commands** like `node(run: 'build')` that might fail on a fresh project.
 
-6. **Use `sink()` for remote files, `create()` for inline content.** Don't use `sink()` when you can write the file contents directly.
+6. **Prefer `artisan()` with a builder for multiple artisan commands** rather than chaining several `->artisan('...')` calls.
 
-7. **Paths are always relative to the working directory.** Never use absolute paths.
+7. **Use `sink()` for remote files, `create()` for inline content.** Don't use `sink()` when you can write the file contents directly.
 
-8. **The `composer()` and `node()` methods accept multiple parameters per call.** You can install and run in the same call: `->composer(install: ['pkg'], run: 'setup')`.
+8. **Paths are always relative to the working directory.** Never use absolute paths.
 
-9. **Package arrays accept strings or arrays.** `composer(install: 'single/package')` works as well as `composer(install: ['a', 'b'])`.
+9. **The `composer()` and `node()` methods accept multiple parameters per call.** You can install and run in the same call: `->composer(install: ['pkg'], run: 'setup')`.
 
-10. **Use `modify()` for PHP class changes instead of string manipulation.** `modify()` uses AST manipulation, so `addTrait`, `addMethod`, etc. are safe. FQCNs passed to `addTrait` and `addInterface` are automatically added as `use` imports.
+10. **Package arrays accept strings or arrays.** `composer(install: 'single/package')` works as well as `composer(install: ['a', 'b'])`.
 
-11. **Every action is rollbackable where possible.** Installs roll back to removes, file creates roll back to deletes, appends roll back to truncation, env and modify changes restore original contents. Artisan commands and script runs cannot be rolled back.
+11. **Use `modify()` for PHP class changes instead of string manipulation.** `modify()` uses AST manipulation, so `addTrait`, `addMethod`, etc. are safe. FQCNs passed to `addTrait` and `addInterface` are automatically added as `use` imports.
+
+12. **Every action is rollbackable where possible.** Installs roll back to removes, file creates roll back to deletes, appends roll back to truncation, env and modify changes restore original contents. Branch creation rolls back by checking out the original branch and deleting the created branch. Artisan commands and script runs cannot be rolled back.
+
+13. **Don't mix `base()` with `branch()`.** `base()` is for `NewProject`, `branch()` is for `NewFeature`/`Refactoring`. They serve the same structural role (prepend a setup step) for different contexts.
 
 ## Action Types and Their Operation Enums
 
@@ -1059,7 +1200,7 @@ return compose('API Service')
 | `CreateFile/ReadFile/...` | `FileOperation` | `Create`, `Read`, `Delete`, `Copy`, `Append`, `Sink` |
 | `EnvAction` | `EnvOperation` | `Env` |
 | `ModifyAction` | `ModifyOperation` | `Modify` |
-| `GitAdd/Clone/Commit/Init` | `GitOperation` | `Clone`, `Init`, `Add`, `Commit` |
+| `GitAdd/Clone/Commit/Init` | `GitOperation` | `Clone`, `Init`, `Add`, `Commit`, `Branch`, `Checkout` |
 | `VerifyAction` | `VerifyOperation` | `Verify` |
 | `TestAction` | `VerifyOperation` | `Test` |
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Compose\Execution;
 
+use Compose\Enums\TaskType;
 use Compose\RecipeContext;
 use Compose\Step;
 
@@ -11,6 +12,7 @@ final class RecipeConfig
 {
     public function __construct(
         public readonly string $name,
+        public readonly TaskType $taskType,
         public readonly RecipeContext $context,
         public readonly ?RecipeContext $baseContext,
         public readonly bool $fresh,
@@ -28,6 +30,10 @@ final class RecipeConfig
         get => $this->baseContext !== null;
     }
 
+    public bool $isNewProject {
+        get => $this->taskType === TaskType::NewProject;
+    }
+
     /**
      * Create a modified copy of this config with selective overrides.
      */
@@ -35,6 +41,7 @@ final class RecipeConfig
     {
         return new self(
             name: $this->name,
+            taskType: $this->taskType,
             context: $this->context,
             baseContext: $this->baseContext,
             fresh: $this->fresh,
