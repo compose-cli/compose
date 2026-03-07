@@ -14,9 +14,9 @@ This document tracks all planned refactors, fixes, and new features for Compose,
 
 ## Priority 5: Recipe System
 
-### 5.1 Recipe Base Class & `->use()`
+### 5.1 Recipe Base Class & `->recipe()`
 
-**Why:** Recipes are reusable, class-based step definitions. Package authors ship them alongside their packages. Users consume them with `->use()`. This is the "Controller" to `compose.php`'s "routes file."
+**Why:** Recipes are reusable, class-based step definitions. Package authors can ship them alongside their packages. Application authors can build recipes and reuse them when they build features. Users consume them with `->recipe()`.
 
 ```php
 class Permissions extends Recipe
@@ -29,7 +29,8 @@ class Permissions extends Recipe
 }
 
 // Usage
-compose('My App')->use(Permissions::withRoles('admin', 'editor'));
+compose('My App')
+    ->recipe(Permissions::withRoles('admin', 'editor'));
 ```
 
 - [ ] Create `src/Recipe.php` abstract class with:
@@ -39,14 +40,12 @@ compose('My App')->use(Permissions::withRoles('admin', 'editor'));
   - `public function requires(): array` (dependency resolution)
   - `public function before(Step $step): void`
   - `public function after(Step $step): void`
-- [ ] Add `Compose::use(Recipe|string ...$recipes): static`
-- [ ] When passed a class string, instantiate it
-- [ ] When passed an instance (e.g., from a static factory), use it directly
+- [ ] Add `Compose::recipe(Recipe|string ...$recipes): static`
+- [ ] When passed a class string, instantiate it when needed to compose the recipe
+- [ ] When passed an instance (e.g., from a static factory), use it directly when composing the recipe
 - [ ] Each Recipe becomes a Step internally — recipe's `compose()` is the step callback
-- [ ] Resolve `requires()` dependencies: topological sort, run dependencies first
-- [ ] Detect circular dependencies and throw
 - [ ] Recipes and inline steps can be interleaved and execute in declaration order
-- [ ] Add tests for: basic recipe, recipe with dependencies, recipe with static factory, mixed inline + recipe
+- [ ] Add tests for: basic recipe, recipe with static factory, mixed inline + recipe
 
 ---
 

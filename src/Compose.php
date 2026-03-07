@@ -112,6 +112,13 @@ class Compose
      */
     protected array $steps = [];
 
+    /**
+     * Registered recipe instances, keyed by class name.
+     *
+     * @var array<class-string<Recipe>, Recipe>
+     */
+    protected array $registeredRecipes = [];
+
     public function __construct(
         protected ?string $name = null,
         protected TaskType|string $type = TaskType::NewProject,
@@ -242,6 +249,65 @@ class Compose
         $this->steps[] = $step;
 
         return $this;
+    }
+
+    /**
+     * Add one or more reusable recipes to the composition.
+     *
+     * Each recipe becomes a Step internally. Dependencies declared
+     * via requires() are resolved eagerly and added before the
+     * dependent recipe's step.
+     *
+     * @param  Recipe|class-string<Recipe>|array<Recipe|class-string<Recipe>>  $recipe
+     */
+    public function recipe(Recipe|string|array $recipe): static
+    {
+        $recipes = is_array($recipe) ? $recipe : [$recipe];
+
+        foreach ($recipes as $r) {
+            $this->resolveRecipe($r);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Resolve a recipe and its dependencies, creating Steps for each.
+     *
+     * @param  array<class-string<Recipe>>  $resolving  Current resolution stack for circular detection
+     */
+    protected function resolveRecipe(Recipe|string $recipe, array $resolving = []): void
+    {
+        $instance = is_string($recipe) ? new $recipe : $recipe;
+        $class = $instance::class;
+
+        if (isset($this->registeredRecipes[$class])) {
+            return;
+        }
+
+        if (in_array($class, $resolving, true)) {
+            throw new Exceptions\CircularDependencyException(
+                'Circular dependency detected: '.implode(' -> ', [...$resolving, $class]),
+            );
+        }
+
+        $resolving[] = $class;
+
+        foreach ($instance->requires() as $dependency) {
+            $this->resolveRecipe($dependency, $resolving);
+        }
+
+        $this->registeredRecipes[$class] = $instance;
+
+        $this->steps[] = new Step(
+            name: $instance->name(),
+            description: $instance->description() ?: null,
+            callback: function (Step $step) use ($instance): void {
+                $instance->before($step);
+                $instance->compose($step);
+                $instance->after($step);
+            },
+        );
     }
 
     /**
