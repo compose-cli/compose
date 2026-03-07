@@ -9,7 +9,7 @@ use PHPUnit\Framework\Assert;
 class FakeProcessExecutor
 {
     /**
-     * @var array<array{command: string[], cwd: ?string}>
+     * @var array<array{command: string[], cwd: ?string, timeout: ?float}>
      */
     protected array $executed = [];
 
@@ -27,7 +27,7 @@ class FakeProcessExecutor
      */
     public function handle(array $command, ?string $cwd = null, ?float $timeout = null): ActionResult
     {
-        $this->executed[] = ['command' => $command, 'cwd' => $cwd];
+        $this->executed[] = ['command' => $command, 'cwd' => $cwd, 'timeout' => $timeout];
 
         $commandString = implode(' ', $command);
 
@@ -70,6 +70,32 @@ class FakeProcessExecutor
         }
 
         Assert::assertTrue($found, "Expected command [{$pattern}] was not executed.");
+    }
+
+    /**
+     * Assert that a command matching the given pattern was executed with a specific timeout.
+     *
+     * @param  string[]  $command
+     */
+    public function assertExecutedWithTimeout(array $command, ?float $timeout): void
+    {
+        $pattern = implode(' ', $command);
+
+        foreach ($this->executed as $record) {
+            $executed = implode(' ', $record['command']);
+
+            if ($this->matchesPattern($executed, $pattern)) {
+                Assert::assertSame(
+                    $timeout,
+                    $record['timeout'],
+                    "Command [{$pattern}] was executed with timeout {$record['timeout']} instead of {$timeout}.",
+                );
+
+                return;
+            }
+        }
+
+        Assert::fail("Expected command [{$pattern}] was not executed.");
     }
 
     /**

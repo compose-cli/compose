@@ -21,6 +21,12 @@ class GitCommit extends Action
     }
 
     #[\Override]
+    public function defaultTimeout(): float
+    {
+        return 30.0;
+    }
+
+    #[\Override]
     public function command(): PendingCommand
     {
         return $this->git('commit')

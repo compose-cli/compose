@@ -16,6 +16,12 @@ class NodeRemove extends NodeAction
     }
 
     #[\Override]
+    public function defaultTimeout(): float
+    {
+        return 60.0;
+    }
+
+    #[\Override]
     public function command(): PendingCommand
     {
         return $this->node($this->removeVerb())

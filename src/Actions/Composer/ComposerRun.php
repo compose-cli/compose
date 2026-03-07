@@ -22,6 +22,12 @@ class ComposerRun extends Action
     }
 
     #[\Override]
+    public function defaultTimeout(): float
+    {
+        return 120.0;
+    }
+
+    #[\Override]
     public function command(): PendingCommand
     {
         $cmd = $this->composer('run', $this->script);

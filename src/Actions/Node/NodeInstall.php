@@ -16,6 +16,12 @@ class NodeInstall extends NodeAction
     }
 
     #[\Override]
+    public function defaultTimeout(): float
+    {
+        return 300.0;
+    }
+
+    #[\Override]
     public function command(): PendingCommand
     {
         return $this->node($this->installVerb())

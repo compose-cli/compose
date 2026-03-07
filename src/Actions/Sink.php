@@ -26,6 +26,12 @@ class Sink extends Action
     }
 
     #[\Override]
+    public function defaultTimeout(): float
+    {
+        return 60.0;
+    }
+
+    #[\Override]
     public function command(): PendingCommand
     {
         $url = $this->resolveUrl();

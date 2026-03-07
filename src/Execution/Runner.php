@@ -71,6 +71,7 @@ class Runner
                 executor: $this->executor,
                 rollback: $rollback,
                 dispatcher: $this->dispatcher,
+                defaultTimeout: $config->timeout,
             );
 
             $result = (new Pipeline)

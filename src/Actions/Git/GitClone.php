@@ -23,6 +23,12 @@ class GitClone extends Action
     }
 
     #[\Override]
+    public function defaultTimeout(): float
+    {
+        return 300.0;
+    }
+
+    #[\Override]
     public function command(): PendingCommand
     {
         $cmd = $this->git('clone')

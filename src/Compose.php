@@ -92,6 +92,11 @@ class Compose
     protected bool $formatWithRector = false;
 
     /**
+     * The default timeout in seconds for process execution.
+     */
+    protected ?float $timeout = null;
+
+    /**
      * The before callbacks to run before the composition.
      *
      * @var callable[]
@@ -228,6 +233,13 @@ class Compose
         return $this;
     }
 
+    public function timeout(float $seconds): static
+    {
+        $this->timeout = $seconds;
+
+        return $this;
+    }
+
     public function before(Closure $callback): static
     {
         $this->beforeCallbacks[] = $callback;
@@ -242,9 +254,9 @@ class Compose
         return $this;
     }
 
-    public function step(string $name, Closure $operations, ?string $description = null, ?string $message = null, FailureStrategy $onFailure = FailureStrategy::Abort): static
+    public function step(string $name, Closure $operations, ?string $description = null, ?string $message = null, FailureStrategy $onFailure = FailureStrategy::Abort, ?float $timeout = null): static
     {
-        $step = new Step($name, $description, $operations, $message, $onFailure);
+        $step = new Step($name, $description, $operations, $message, $onFailure, $timeout);
 
         $this->steps[] = $step;
 
@@ -348,6 +360,7 @@ class Compose
             steps: $this->steps,
             beforeCallbacks: $this->beforeCallbacks,
             afterCallbacks: $this->afterCallbacks,
+            timeout: $this->timeout,
         );
     }
 

@@ -24,6 +24,12 @@ class TestAction extends Action
     }
 
     #[\Override]
+    public function defaultTimeout(): float
+    {
+        return 300.0;
+    }
+
+    #[\Override]
     public function command(): PendingCommand
     {
         return $this->artisan('test', '--filter='.$this->path);
@@ -38,6 +44,6 @@ class TestAction extends Action
     #[\Override]
     public function preflight(): PendingCommand
     {
-        return $this->artisan('--version');
+        return $this->artisan('--version')->timeout(10.0);
     }
 }

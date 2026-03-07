@@ -18,5 +18,6 @@ class StepContext
         public readonly ProcessExecutor $executor,
         public readonly RollbackManager $rollback,
         public readonly EventDispatcher $dispatcher,
+        public readonly ?float $defaultTimeout = null,
     ) {}
 }

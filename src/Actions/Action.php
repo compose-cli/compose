@@ -88,6 +88,17 @@ abstract class Action
     }
 
     /**
+     * The default timeout in seconds for this action type.
+     *
+     * Override in subclasses to provide sensible per-action defaults.
+     * Return null to defer to the step, compose, or executor default.
+     */
+    public function defaultTimeout(): ?float
+    {
+        return null;
+    }
+
+    /**
      * A command that must succeed before any action of this type executes.
      *
      * Return null if no preflight check is needed.

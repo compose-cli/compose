@@ -23,6 +23,12 @@ class NodeRun extends Action
     }
 
     #[\Override]
+    public function defaultTimeout(): float
+    {
+        return 120.0;
+    }
+
+    #[\Override]
     public function command(): PendingCommand
     {
         $usesRun = match ($this->manager()) {

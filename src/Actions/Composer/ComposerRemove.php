@@ -16,6 +16,12 @@ class ComposerRemove extends ComposerAction
     }
 
     #[\Override]
+    public function defaultTimeout(): float
+    {
+        return 120.0;
+    }
+
+    #[\Override]
     public function command(): PendingCommand
     {
         return $this->composer('remove')

@@ -29,8 +29,22 @@ class ArtisanAction extends Action
     }
 
     #[\Override]
+    public function defaultTimeout(): float
+    {
+        $cmd = explode(' ', trim($this->command))[0] ?? '';
+
+        return match (true) {
+            str_starts_with($cmd, 'make:') => 15.0,
+            str_starts_with($cmd, 'migrate'),
+            str_starts_with($cmd, 'db:seed') => 120.0,
+            $cmd === 'vendor:publish' => 30.0,
+            default => 60.0,
+        };
+    }
+
+    #[\Override]
     public function preflight(): PendingCommand
     {
-        return $this->artisan('--version');
+        return $this->artisan('--version')->timeout(10.0);
     }
 }

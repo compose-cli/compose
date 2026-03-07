@@ -149,6 +149,7 @@ compose('My App')
     ->in('my-app', fresh: true)      // Working directory (fresh: delete first)
     ->base(repo: 'https://...')       // Clone a base repo
     ->node(Node::Pnpm)               // Use pnpm instead of npm
+    ->timeout(60)                     // Default process timeout (seconds)
     ->format()                        // Run Pint after each step
     ->commit(automatically: true);    // Git commit after each step
 ```
@@ -159,6 +160,7 @@ compose('My App')
 compose('Add Permissions', type: TaskType::NewFeature)
     ->inCwd()                                    // Use current working directory
     ->branch('feature/permissions')              // Create and checkout a new branch
+    ->timeout(120)                               // Default process timeout (seconds)
     ->format(pint: true, rector: true)           // Run Rector then Pint after each step
     ->commit(automatically: true);               // Git commit after each step
 ```
@@ -174,6 +176,149 @@ $recipe->step('Step Name', function (Step $step): void {
     // operations go here
 });
 ```
+
+Each step can set a per-step process timeout that overrides the recipe-level default:
+
+```php
+$recipe->step('Quick Generators', fn (Step $step) => $step
+    ->artisan('make:model Team -mf')
+    ->artisan('make:controller TeamController --api'),
+    timeout: 30,
+);
+
+$recipe->step('Heavy Migration', fn (Step $step) => $step
+    ->artisan('migrate:fresh --seed'),
+    timeout: 300,
+);
+```
+
+### Recipes
+
+Recipes are reusable, class-based step definitions. Package authors can ship them alongside their packages, and application authors can build recipes for repeated workflows. Each recipe becomes a Step internally.
+
+```php
+use Compose\Recipe;
+use Compose\Step;
+
+class Permissions extends Recipe
+{
+    public function compose(Step $step): void
+    {
+        $step
+            ->composer(install: ['spatie/laravel-permission'])
+            ->artisan('migrate');
+    }
+}
+```
+
+Use recipes with `->recipe()`:
+
+```php
+compose('My App')
+    ->recipe(new Permissions)
+    ->step('Frontend', fn (Step $step) => $step->node(install: ['vue']));
+```
+
+Recipes and inline steps interleave in declaration order.
+
+**Static factories** let you pass configuration into a recipe:
+
+```php
+class Permissions extends Recipe
+{
+    private readonly array $roles;
+
+    public function __construct(string ...$roles)
+    {
+        $this->roles = $roles;
+    }
+
+    public static function withRoles(string ...$roles): static
+    {
+        return new static(...$roles);
+    }
+
+    public function compose(Step $step): void
+    {
+        $step->composer(install: ['spatie/laravel-permission']);
+
+        foreach ($this->roles as $role) {
+            $step->artisan("permission:create-role {$role}");
+        }
+    }
+}
+
+// Usage
+compose('My App')
+    ->recipe(Permissions::withRoles('admin', 'editor'));
+```
+
+**Class strings** are also accepted — the recipe is instantiated automatically:
+
+```php
+->recipe(Permissions::class)
+```
+
+**Arrays** register multiple recipes at once:
+
+```php
+->recipe([Permissions::class, Telescope::class])
+```
+
+**Dependencies** — a recipe can declare that it requires other recipes via `requires()`. Missing dependencies are auto-instantiated and run before the dependent recipe:
+
+```php
+class RoleSeeder extends Recipe
+{
+    public function requires(): array
+    {
+        return [Permissions::class];
+    }
+
+    public function compose(Step $step): void
+    {
+        $step->artisan('db:seed --class=RoleSeeder');
+    }
+}
+
+// Only RoleSeeder is added — Permissions is auto-resolved before it
+compose('My App')->recipe(RoleSeeder::class);
+```
+
+Transitive dependencies are resolved recursively. Circular dependencies throw a `CircularDependencyException`. Duplicate registrations are deduplicated.
+
+**Lifecycle hooks** — `before()` and `after()` run on the same Step, surrounding `compose()`:
+
+```php
+class Permissions extends Recipe
+{
+    public function before(Step $step): void
+    {
+        $step->verify(fn () => file_exists('composer.json'));
+    }
+
+    public function compose(Step $step): void
+    {
+        $step->composer(install: ['spatie/laravel-permission']);
+    }
+
+    public function after(Step $step): void
+    {
+        $step->verify(fn () => file_exists('config/permission.php'));
+    }
+}
+```
+
+**Recipe API:**
+
+| Method | Signature | Purpose |
+|---|---|---|
+| `compose` | `compose(Step $step): void` | **Required.** Define the recipe's operations. |
+| `name` | `name(): string` | Display name (defaults to short class name). |
+| `description` | `description(): string` | Short description (defaults to empty). |
+| `requires` | `requires(): array` | Recipe class strings that must run first. |
+| `before` | `before(Step $step): void` | Operations to run before `compose()`. |
+| `after` | `after(Step $step): void` | Operations to run after `compose()`. |
 
 ## Step API
 
@@ -567,6 +712,48 @@ After each step, code quality tools (if enabled) and auto-commit actions also di
 
 The CLI command wires these to `SymfonyStyle` output for colored terminal feedback.
 
+### Process Timeouts
+
+Every command-based action runs with a process timeout. The timeout is resolved through a cascade — the first non-null value wins:
+
+1. **Explicit command timeout** — set on the `PendingCommand` (used internally by preflights)
+2. **Step timeout** — `->step('Name', fn (...) => ..., timeout: 60)` applies to all actions in the step
+3. **Compose timeout** — `->timeout(30)` sets the recipe-wide default
+4. **Action smart default** — each action type has a built-in default based on expected duration
+5. **ProcessExecutor fallback** — 300 seconds if nothing else is set
+
+**Smart defaults by action type:**
+
+| Action | Default | Rationale |
+|---|---|---|
+| `artisan make:*` | 15s | Code generation, near-instant |
+| `artisan migrate*`, `db:seed*` | 120s | Database operations |
+| `artisan vendor:publish` | 30s | File copies |
+| `artisan` (other) | 60s | General commands |
+| `composer require` | 300s | Network + dependency resolution |
+| `composer remove` | 120s | Local operation |
+| `composer run` | 120s | Script execution |
+| `node install` | 300s | Network + dependency resolution |
+| `node remove` | 60s | Local operation |
+| `node run` | 120s | Script execution |
+| `git clone` | 300s | Network, potentially large repos |
+| `git init`, `checkout`, `branch` | 15s | Near-instant local operations |
+| `git add`, `commit` | 30s | Local operations |
+| `sink` (curl) | 60s | Network download |
+| Pint / Rector | 120s | Code formatting / refactoring |
+| `test` | 300s | Test suites can be slow |
+
+Set the recipe-wide timeout to cap all actions:
+
+```php
+compose('My App')
+    ->timeout(60)   // 60s default for all actions
+    ->step('Fast', fn (Step $step) => $step->artisan('make:model Team'))
+    ->step('Slow', fn (Step $step) => $step->composer(install: ['laravel/framework']), timeout: 300);
+```
+
+In this example, the `make:model` action uses the 60s compose timeout (overriding its 15s smart default), while the `composer require` uses the 300s step timeout.
+
 ## Testing
 
 Compose ships with `ProcessExecutor::fake()` for testing recipes without executing real commands:
@@ -583,11 +770,12 @@ ProcessExecutor::fake([
 // ... run your recipe or actions ...
 
 ProcessExecutor::assertExecuted(['composer', 'require', 'laravel/framework']);
+ProcessExecutor::assertExecutedWithTimeout(['composer', 'require', '*'], 300.0);
 ProcessExecutor::assertNotExecuted(['npm', '*']);
 ProcessExecutor::assertNothingExecuted();
 ```
 
-Pattern matching supports `*` wildcards. Unmatched commands return success by default.
+Pattern matching supports `*` wildcards. Unmatched commands return success by default. `assertExecutedWithTimeout` verifies both that the command ran and that it was given the expected timeout.
 
 For file operations, use the `InteractsWithFilesystem` test trait:
 
@@ -620,6 +808,7 @@ composer test
 ```
 src/
 ├── Compose.php                    # Recipe builder & entry point
+├── Recipe.php                     # Abstract base class for reusable recipes
 ├── Step.php                       # Fluent step builder
 ├── RecipeContext.php               # Execution context (binaries, working dir)
 ├── Filesystem.php                 # Recursive directory deletion
@@ -741,6 +930,7 @@ src/
 │       └── PlanCommand.php        # CLI: preview a recipe (dry-run)
 │
 └── Exceptions/
+    ├── CircularDependencyException.php
     └── DangerousPathException.php
 ```
 
@@ -774,6 +964,7 @@ return compose('Project Name')
     ->in('directory', fresh: true)
     ->base(repo: 'https://github.com/laravel/laravel.git', branch: '11.x')
     ->node(Node::Pnpm)
+    ->timeout(120)
     ->commit(automatically: true)
     ->step('Step Name', function (Step $step): void {
         $step->composer(install: ['package/name']);
@@ -814,8 +1005,10 @@ The `type` parameter controls which configuration methods are available:
 | `branch` | `branch(string $name, bool $create = true)` | Create and checkout (or just checkout) a branch (NewFeature/Refactoring only). |
 | `node` | `node(Node $manager)` | Set node package manager: `Node::Npm`, `Node::Yarn`, `Node::Pnpm`, `Node::Bun`. |
 | `commit` | `commit(bool $automatically = false, bool $smart = false)` | Auto-commit after each step. `smart: true` uses AI for commit messages. |
+| `timeout` | `timeout(float $seconds)` | Set the default process timeout for all actions. Overridden by step-level timeouts. |
 | `format` | `format(bool $pint = true, bool $rector = false)` | Run code quality tools after each step. Uses project-installed binaries. |
-| `step` | `step(string $name, Closure $callback): static` | Define a step. Closure receives `Step`. Returns `$this` for chaining. |
+| `step` | `step(string $name, Closure $callback, ?float $timeout = null): static` | Define a step. Closure receives `Step`. Optional timeout overrides recipe default. |
+| `recipe` | `recipe(Recipe\|string\|array $recipe): static` | Add a reusable Recipe (instance, class string, or array). Dependencies auto-resolved. |
 | `plan` | `plan(): Plan` | Generate a dry-run plan without executing. |
 | `run` | `run(?EventDispatcher $dispatcher = null): RunResult` | Execute the recipe. |
 
@@ -1226,6 +1419,8 @@ return compose('API Service')
 12. **Every action is rollbackable where possible.** Installs roll back to removes, file creates roll back to deletes, appends roll back to truncation, env and modify changes restore original contents. Branch creation rolls back by checking out the original branch and deleting the created branch. Artisan commands and script runs cannot be rolled back.
 
 13. **Don't mix `base()` with `branch()`.** `base()` is for `NewProject`, `branch()` is for `NewFeature`/`Refactoring`. They serve the same structural role (prepend a setup step) for different contexts.
+
+14. **Use `timeout()` for constrained environments.** Every action has a smart default timeout (e.g. 15s for `make:*`, 300s for `composer require`). Set `->timeout()` at the recipe level to override defaults globally, or pass `timeout:` to individual `->step()` calls for per-step control. Step timeouts override the recipe timeout, which overrides smart defaults.
 
 ## Action Types and Their Operation Enums
 

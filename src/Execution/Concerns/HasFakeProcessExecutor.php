@@ -32,6 +32,16 @@ trait HasFakeProcessExecutor
     }
 
     /**
+     * Assert that a command was executed with a specific timeout.
+     *
+     * @param  string[]  $command
+     */
+    public static function assertExecutedWithTimeout(array $command, ?float $timeout): void
+    {
+        static::getFake()->assertExecutedWithTimeout($command, $timeout);
+    }
+
+    /**
      * Assert that a command was not executed.
      *
      * @param  string[]  $command

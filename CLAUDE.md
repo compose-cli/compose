@@ -39,7 +39,7 @@ php vendor/bin/rector process --dry-run --debug
 
 **Key layers:**
 
-- **Recipe definition** (`Compose`, `Step`): Fluent API for configuring scaffolding recipes with steps containing composer/node/git/artisan/file operations.
+- **Recipe definition** (`Compose`, `Step`, `Recipe`): Fluent API for configuring scaffolding recipes with steps containing composer/node/git/artisan/file operations. `Recipe` is an abstract base class for reusable, class-based step definitions with dependency resolution via `requires()`.
 - **Actions** (`src/Actions/`): Two kinds of actions exist:
   - **Command-based actions** (Composer, Node, Git, Artisan, Sink): Build a `PendingCommand` via `command()` and execute through `ProcessExecutor` (Symfony Process). Rollback also via shell commands.
   - **Direct actions** (File/*): Override `execute()` to perform PHP-native I/O. Return `ActionResult` directly. Rollback via `rollbackDirect()`. Identified by `isDirect()` (when `command()` returns null).

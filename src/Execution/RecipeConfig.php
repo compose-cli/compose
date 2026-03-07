@@ -26,6 +26,7 @@ final class RecipeConfig
         public readonly array $beforeCallbacks,
         /** @var callable[] */
         public readonly array $afterCallbacks,
+        public readonly ?float $timeout = null,
     ) {}
 
     public bool $hasBase {
@@ -44,6 +45,7 @@ final class RecipeConfig
         ?bool $formatWithPint = null,
         ?bool $formatWithRector = null,
         ?array $steps = null,
+        ?float $timeout = null,
     ): static {
         return new self(
             name: $this->name,
@@ -58,6 +60,7 @@ final class RecipeConfig
             steps: $steps ?? $this->steps,
             beforeCallbacks: $this->beforeCallbacks,
             afterCallbacks: $this->afterCallbacks,
+            timeout: $timeout ?? $this->timeout,
         );
     }
 }

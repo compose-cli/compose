@@ -43,6 +43,7 @@ class Step
         public readonly ?Closure $callback = null,
         public readonly ?string $message = null,
         public readonly FailureStrategy $failureStrategy = FailureStrategy::Abort,
+        public readonly ?float $timeout = null,
     ) {}
 
     public function composer(

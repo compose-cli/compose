@@ -12,42 +12,7 @@ This document tracks all planned refactors, fixes, and new features for Compose,
 
 ## Priority 4 - complete
 
-## Priority 5: Recipe System
-
-### 5.1 Recipe Base Class & `->recipe()`
-
-**Why:** Recipes are reusable, class-based step definitions. Package authors can ship them alongside their packages. Application authors can build recipes and reuse them when they build features. Users consume them with `->recipe()`.
-
-```php
-class Permissions extends Recipe
-{
-    public function compose(Step $step): void
-    {
-        $step->composer(install: ['spatie/laravel-permission'], publish: true);
-        // ...
-    }
-}
-
-// Usage
-compose('My App')
-    ->recipe(Permissions::withRoles('admin', 'editor'));
-```
-
-- [ ] Create `src/Recipe.php` abstract class with:
-  - `abstract public function compose(Step $step): void`
-  - `public function name(): string` (defaults to class name)
-  - `public function description(): string`
-  - `public function requires(): array` (dependency resolution)
-  - `public function before(Step $step): void`
-  - `public function after(Step $step): void`
-- [ ] Add `Compose::recipe(Recipe|string ...$recipes): static`
-- [ ] When passed a class string, instantiate it when needed to compose the recipe
-- [ ] When passed an instance (e.g., from a static factory), use it directly when composing the recipe
-- [ ] Each Recipe becomes a Step internally — recipe's `compose()` is the step callback
-- [ ] Recipes and inline steps can be interleaved and execute in declaration order
-- [ ] Add tests for: basic recipe, recipe with static factory, mixed inline + recipe
-
----
+## Priority 5 - complete
 
 ## Priority 6 - complete
 
@@ -141,7 +106,7 @@ $step->instruct('Create a dashboard with team memberships', fn (Instruct $i) => 
 
 ---
 
-## Priority 9: CLI Enhancements - complete
+## Priority 9 - complete
 
 ## Dependency Notes
 

@@ -21,6 +21,12 @@ class GitCheckout extends Action
     }
 
     #[\Override]
+    public function defaultTimeout(): float
+    {
+        return 15.0;
+    }
+
+    #[\Override]
     public function command(): PendingCommand
     {
         return $this->git('checkout')->argument($this->branch);

@@ -142,10 +142,15 @@ class ExecuteActions
             );
         }
 
+        $timeout = $command->getTimeout()
+            ?? $context->step->timeout
+            ?? $context->defaultTimeout
+            ?? $action->defaultTimeout();
+
         return $context->executor->execute(
             $command->toArray(),
             $context->recipeContext->workingDirectory,
-            $command->getTimeout(),
+            $timeout,
         );
     }
 

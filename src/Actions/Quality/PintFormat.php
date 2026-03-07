@@ -17,6 +17,12 @@ class PintFormat extends Action
     }
 
     #[\Override]
+    public function defaultTimeout(): float
+    {
+        return 120.0;
+    }
+
+    #[\Override]
     public function command(): PendingCommand
     {
         return new PendingCommand($this->context()->phpBinary, 'vendor/bin/pint');
