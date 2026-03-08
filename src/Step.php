@@ -436,6 +436,10 @@ class Step
      */
     public function operations(): array
     {
+        if (! $this->resolved) {
+            $this->resolveOperations();
+        }
+
         return $this->operations;
     }
 }

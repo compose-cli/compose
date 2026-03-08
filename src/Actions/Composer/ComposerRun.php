@@ -30,14 +30,7 @@ class ComposerRun extends Action
     #[\Override]
     public function command(): PendingCommand
     {
-        $cmd = $this->composer('run', $this->script);
-
-        $args = (array) $this->args;
-
-        if ($args !== []) {
-            $cmd->argument('--', ...$args);
-        }
-
-        return $cmd;
+        return $this->composer('run', $this->script)
+            ->withArgs((array) $this->args);
     }
 }

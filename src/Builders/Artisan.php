@@ -11,7 +11,7 @@ use Compose\Actions\Config\ConfigAction;
 
 class Artisan
 {
-    /** @var list<string|Action> */
+    /** @var list<array{type: 'command', value: string}|array{type: 'action', value: Action}> */
     protected array $entries = [];
 
     /**
@@ -19,7 +19,7 @@ class Artisan
      */
     public function run(string $command): static
     {
-        $this->entries[] = $command;
+        $this->entries[] = ['type' => 'command', 'value' => $command];
 
         return $this;
     }
@@ -126,7 +126,7 @@ class Artisan
             $path = $this->resolveConfigPath($fileOrDotPath);
             $builder = new ConfigBuilder;
             $valueOrCallback($builder);
-            $this->entries[] = new ConfigAction(path: $path, operations: $builder->operations());
+            $this->entries[] = ['type' => 'action', 'value' => new ConfigAction(path: $path, operations: $builder->operations())];
 
             return $this;
         }
@@ -145,7 +145,7 @@ class Artisan
 
         $builder = new ConfigBuilder;
         $builder->set($key, $valueOrCallback);
-        $this->entries[] = new ConfigAction(path: $path, operations: $builder->operations());
+        $this->entries[] = ['type' => 'action', 'value' => new ConfigAction(path: $path, operations: $builder->operations())];
 
         return $this;
     }
@@ -167,14 +167,17 @@ class Artisan
     /**
      * Compile the collected entries into Action instances.
      *
-     * Strings are converted to ArtisanActions; Action objects pass through as-is.
+     * Command entries are converted to ArtisanActions; action entries pass through as-is.
+     * Ordering is preserved as declared.
      *
      * @return list<Action>
      */
     public function actions(): array
     {
         return array_map(
-            fn (string|Action $entry): Action => is_string($entry) ? new ArtisanAction($entry) : $entry,
+            fn (array $entry): Action => $entry['type'] === 'command'
+                ? new ArtisanAction($entry['value'])
+                : $entry['value'],
             $this->entries,
         );
     }

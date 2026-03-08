@@ -67,7 +67,7 @@ class EnvAction extends Action
             );
         }
 
-        $opCount = $this->countOperations($this->operations);
+        $opCount = count($this->operations);
 
         return ActionResult::success(
             command: $this->descriptionArray(),
@@ -78,7 +78,7 @@ class EnvAction extends Action
     #[\Override]
     public function describe(): string
     {
-        $opCount = $this->countOperations($this->operations);
+        $opCount = count($this->operations);
 
         return "env {$this->path} ({$opCount} operation".($opCount !== 1 ? 's' : '').')';
     }
@@ -142,22 +142,6 @@ class EnvAction extends Action
         $builder = new EnvBuilder;
         $callback($builder);
         $this->applyOperations($parser, $builder->operations());
-    }
-
-    /**
-     * Count non-conditional operations (for describe output).
-     *
-     * @param  list<array{type: string, ...}>  $operations
-     */
-    private function countOperations(array $operations): int
-    {
-        $count = 0;
-
-        foreach ($operations as $op) {
-            $count += $op['type'] === 'when' ? 1 : 1;
-        }
-
-        return $count;
     }
 
     /**

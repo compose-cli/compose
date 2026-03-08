@@ -179,8 +179,8 @@ class Runner
             );
         }
 
-        $resolved = realpath($path) ?: $path;
-        $cwd = realpath(getcwd()) ?: (string) getcwd();
+        $resolved = realpath($path) ?: $this->normalizePath($path);
+        $cwd = realpath((string) getcwd()) ?: $this->normalizePath((string) getcwd());
 
         if ($resolved === $cwd || $resolved === '.') {
             throw new DangerousPathException(
@@ -188,23 +188,37 @@ class Runner
             );
         }
 
-        $home = $_SERVER['HOME'] ?? $_SERVER['USERPROFILE'] ?? null;
-
-        if ($home !== null && $resolved === realpath($home)) {
+        if (str_starts_with($cwd, $resolved . '/')) {
             throw new DangerousPathException(
-                "Cannot use fresh mode: the path '{$path}' resolves to the home directory.",
+                "Cannot use fresh mode: the path '{$path}' is a parent of the current working directory.",
             );
         }
 
+        $home = $_SERVER['HOME'] ?? $_SERVER['USERPROFILE'] ?? null;
+
+        if ($home !== null) {
+            $resolvedHome = realpath($home) ?: $this->normalizePath($home);
+            if ($resolved === $resolvedHome) {
+                throw new DangerousPathException(
+                    "Cannot use fresh mode: the path '{$path}' resolves to the home directory.",
+                );
+            }
+        }
+
         $isRoot = $resolved === '/'
-            || $resolved === '\\'
-            || preg_match('/^[A-Z]:\\\\?$/i', $resolved);
+            || $resolved === ''
+            || preg_match('/^[A-Z]:[\\/]?$/i', $resolved);
 
         if ($isRoot) {
             throw new DangerousPathException(
                 "Cannot use fresh mode: the path '{$path}' resolves to a filesystem root.",
             );
         }
+    }
+
+    private function normalizePath(string $path): string
+    {
+        return rtrim(str_replace('\\', '/', $path), '/');
     }
 
     /**

@@ -611,6 +611,30 @@ describe('Runner fresh guard', function (): void {
         $recipe->run();
     })->throws(DangerousPathException::class);
 
+    it('throws when fresh mode targets a parent of the current working directory', function (): void {
+        ProcessExecutor::fake();
+
+        $parent = dirname((string) getcwd());
+
+        $recipe = compose('Test Recipe')
+            ->in($parent, fresh: true);
+
+        $recipe->step('Install', fn (Step $step) => $step->composer(install: ['pkg']));
+
+        $recipe->run();
+    })->throws(DangerousPathException::class);
+
+    it('throws when fresh mode targets an empty string', function (): void {
+        ProcessExecutor::fake();
+
+        $recipe = compose('Test Recipe')
+            ->in('', fresh: true);
+
+        $recipe->step('Install', fn (Step $step) => $step->composer(install: ['pkg']));
+
+        $recipe->run();
+    })->throws(DangerousPathException::class);
+
     it('allows fresh mode with a valid subdirectory', function (): void {
         ProcessExecutor::fake();
 

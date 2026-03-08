@@ -6,6 +6,8 @@ namespace Compose\Actions;
 
 use Compose\Contracts\Operation;
 use Compose\Enums\FileOperation;
+use Compose\Execution\ActionResult;
+use Compose\RecipeContext;
 
 class Sink extends Action
 {
@@ -32,35 +34,67 @@ class Sink extends Action
     }
 
     #[\Override]
-    public function command(): PendingCommand
+    public function execute(RecipeContext $context): ActionResult
     {
         $url = $this->resolveUrl();
-        $target = $this->resolveTarget();
+        $target = $this->resolvePath($this->resolveTarget());
 
-        return (new PendingCommand('curl', '-fsSL'))
-            ->flag('-o')
-            ->argument($target)
-            ->argument($url);
-    }
-
-    #[\Override]
-    public function rollback(): ?PendingCommand
-    {
-        $target = $this->resolveTarget();
-
-        if (! $this->force) {
-            return null;
+        $directory = dirname($target);
+        if (! is_dir($directory) && ! mkdir($directory, 0755, true)) {
+            return ActionResult::failure(
+                errorOutput: "Failed to create directory: {$directory}",
+                command: $this->descriptionArray(),
+            );
         }
 
-        return PHP_OS_FAMILY === 'Windows'
-            ? new PendingCommand('cmd', '/c', 'del', '/q', $target)
-            : new PendingCommand('rm', '-f', $target);
+        if (! $this->force && file_exists($target)) {
+            return ActionResult::success(
+                command: $this->descriptionArray(),
+                output: "Skipped (exists): {$this->resolveTarget()}",
+            );
+        }
+
+        $contents = @file_get_contents($url);
+
+        if ($contents === false) {
+            return ActionResult::failure(
+                errorOutput: "Failed to fetch: {$url}",
+                command: $this->descriptionArray(),
+            );
+        }
+
+        if (file_put_contents($target, $contents) === false) {
+            return ActionResult::failure(
+                errorOutput: "Failed to write: {$this->resolveTarget()}",
+                command: $this->descriptionArray(),
+            );
+        }
+
+        return ActionResult::success(
+            command: $this->descriptionArray(),
+            output: "Fetched: {$this->resolveTarget()} (" . strlen($contents) . ' bytes)',
+        );
     }
 
     #[\Override]
-    public function canBeRolledBack(): bool
+    public function canRollbackDirect(): bool
     {
         return $this->force;
+    }
+
+    #[\Override]
+    public function rollbackDirect(RecipeContext $context): ActionResult
+    {
+        $target = $this->resolvePath($this->resolveTarget());
+
+        if (file_exists($target)) {
+            unlink($target);
+        }
+
+        return ActionResult::success(
+            command: ['rollback:sink', $this->resolveTarget()],
+            output: "Deleted: {$this->resolveTarget()}",
+        );
     }
 
     #[\Override]
@@ -169,5 +203,13 @@ class Sink extends Action
         }
 
         return substr($without_prefix, $colonPos + 1);
+    }
+
+    /**
+     * @return string[]
+     */
+    private function descriptionArray(): array
+    {
+        return ['sink', $this->resolveTarget()];
     }
 }

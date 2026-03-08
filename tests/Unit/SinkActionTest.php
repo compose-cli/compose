@@ -125,49 +125,35 @@ describe('Sink', function (): void {
     });
 
     // -------------------------------------------------------------------
-    // Command Generation
+    // Execution
     // -------------------------------------------------------------------
 
-    describe('command generation', function (): void {
+    describe('execution', function (): void {
 
-        it('generates a curl command for raw URLs', function (): void {
-            $action = (new Sink(
+        it('is a direct-execution action', function (): void {
+            $action = new Sink(
                 from: 'https://example.com/file.yml',
                 to: 'file.yml',
-            ))->withContext(context());
-
-            expect($action)->toGenerateCommand('curl -fsSL -o file.yml https://example.com/file.yml');
-        });
-
-        it('generates a curl command with resolved github URL', function (): void {
-            $action = (new Sink(
-                from: 'github:laravel/laravel@11.x:phpunit.xml.dist',
-                to: 'phpunit.xml.dist',
-            ))->withContext(context());
-
-            expect($action)->toGenerateCommand(
-                'curl -fsSL -o phpunit.xml.dist https://raw.githubusercontent.com/laravel/laravel/11.x/phpunit.xml.dist',
             );
+
+            expect($action->isDirect())->toBeTrue();
         });
 
-        it('generates a curl command with derived target', function (): void {
-            $action = (new Sink(
-                from: 'github:laravel/laravel@11.x:.github/workflows/tests.yml',
-            ))->withContext(context());
+        it('skips download when force is false and target exists', function (): void {
+            $target = 'existing.yml';
+            $this->createFile($target, 'original content');
 
-            expect($action)->toGenerateCommand(
-                'curl -fsSL -o .github/workflows/tests.yml https://raw.githubusercontent.com/laravel/laravel/11.x/.github/workflows/tests.yml',
-            );
-        });
-
-        it('returns the correct command array', function (): void {
             $action = (new Sink(
                 from: 'https://example.com/file.yml',
-                to: 'output.yml',
-            ))->withContext(context());
+                to: $target,
+                force: false,
+            ))->withContext(context(workingDirectory: $this->tempPath));
 
-            expect($action->command()->toArray())
-                ->toBe(['curl', '-fsSL', '-o', 'output.yml', 'https://example.com/file.yml']);
+            $result = $action->execute(context(workingDirectory: $this->tempPath));
+
+            expect($result->successful)->toBeTrue()
+                ->and($result->output)->toContain('Skipped (exists)')
+                ->and(file_get_contents($this->tempPath . DIRECTORY_SEPARATOR . $target))->toBe('original content');
         });
 
     });
@@ -188,38 +174,40 @@ describe('Sink', function (): void {
 
     describe('rollback', function (): void {
 
-        it('can be rolled back', function (): void {
-            $action = (new Sink(
+        it('can be rolled back when force is true', function (): void {
+            $action = new Sink(
                 from: 'https://example.com/file.yml',
                 to: 'config/file.yml',
-            ))->withContext(context());
+                force: true,
+            );
 
-            expect($action->canBeRolledBack())->toBeTrue();
+            expect($action->canRollbackDirect())->toBeTrue();
+        });
+
+        it('cannot be rolled back when force is false', function (): void {
+            $action = new Sink(
+                from: 'https://example.com/file.yml',
+                to: 'config/file.yml',
+                force: false,
+            );
+
+            expect($action->canRollbackDirect())->toBeFalse();
         });
 
         it('rolls back by deleting the target file', function (): void {
+            $target = 'rollback-test.yml';
+            $this->createFile($target, 'fetched content');
+
             $action = (new Sink(
                 from: 'https://example.com/file.yml',
-                to: 'config/file.yml',
-            ))->withContext(context());
+                to: $target,
+                force: true,
+            ))->withContext(context(workingDirectory: $this->tempPath));
 
-            $expected = PHP_OS_FAMILY === 'Windows'
-                ? 'cmd /c del /q config/file.yml'
-                : 'rm -f config/file.yml';
+            $result = $action->rollbackDirect(context(workingDirectory: $this->tempPath));
 
-            expect($action->rollback()->toString())->toBe($expected);
-        });
-
-        it('rolls back with derived target', function (): void {
-            $action = (new Sink(
-                from: 'github:laravel/laravel@11.x:phpunit.xml.dist',
-            ))->withContext(context());
-
-            $expected = PHP_OS_FAMILY === 'Windows'
-                ? 'cmd /c del /q phpunit.xml.dist'
-                : 'rm -f phpunit.xml.dist';
-
-            expect($action->rollback()->toString())->toBe($expected);
+            expect($result->successful)->toBeTrue()
+                ->and(file_exists($this->tempPath . DIRECTORY_SEPARATOR . $target))->toBeFalse();
         });
 
     });

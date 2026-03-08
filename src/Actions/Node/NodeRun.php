@@ -36,25 +36,15 @@ class NodeRun extends Action
             default => true,
         };
 
+        $usesSeparator = match ($this->manager()) {
+            Node::Yarn, Node::Bun => false,
+            default => true,
+        };
+
         $cmd = $usesRun
             ? $this->node('run', $this->script)
             : $this->node($this->script);
 
-        $args = (array) $this->args;
-
-        if ($args !== []) {
-            $usesSeparator = match ($this->manager()) {
-                Node::Yarn, Node::Bun => false,
-                default => true,
-            };
-
-            if ($usesSeparator) {
-                $cmd->argument('--', ...$args);
-            } else {
-                $cmd->argument(...$args);
-            }
-        }
-
-        return $cmd;
+        return $cmd->withArgs((array) $this->args, $usesSeparator ? '--' : null);
     }
 }

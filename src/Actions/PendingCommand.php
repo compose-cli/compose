@@ -79,6 +79,26 @@ class PendingCommand implements Stringable
     }
 
     /**
+     * Add arguments after an optional separator (e.g. '--').
+     *
+     * @param  string[]  $args
+     */
+    public function withArgs(array $args, ?string $separator = '--'): static
+    {
+        if ($args === []) {
+            return $this;
+        }
+
+        if ($separator !== null) {
+            $this->arguments[] = $separator;
+        }
+
+        array_push($this->arguments, ...$args);
+
+        return $this;
+    }
+
+    /**
      * Conditionally modify the command.
      */
     public function when(bool $condition, Closure $callback): static
