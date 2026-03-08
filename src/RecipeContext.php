@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Compose;
 
+use Compose\Enums\AIAgent;
 use Compose\Enums\Node;
 
 class RecipeContext
@@ -14,6 +15,7 @@ class RecipeContext
         public readonly string $gitBinary = 'git',
         public readonly Node $nodeManager = Node::Npm,
         public readonly ?string $workingDirectory = null,
+        public readonly AIAgent $aiAgent = AIAgent::Claude,
     ) {}
 
     /**
@@ -27,6 +29,7 @@ class RecipeContext
             gitBinary: $this->gitBinary,
             nodeManager: $this->nodeManager,
             workingDirectory: $directory,
+            aiAgent: $this->aiAgent,
         );
     }
 }

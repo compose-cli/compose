@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Compose\Console\Commands;
 
+use Compose\Actions\AI\InstructAction;
 use Compose\Compose;
 use Compose\Events\ActionCompleted;
 use Compose\Events\ActionExecuting;
@@ -233,7 +234,13 @@ class RunCommand extends Command
             $io->text("  <fg=green>✓</> {$event->action->describe()}<fg=gray>{$duration}</>");
 
             if ($io->isVerbose() && $event->result->output !== '') {
-                foreach (explode("\n", trim($event->result->output)) as $line) {
+                $lines = explode("\n", trim($event->result->output));
+
+                if ($event->action instanceof InstructAction && count($lines) > 20) {
+                    $lines = [...array_slice($lines, 0, 20), '... ('.count($lines).' lines total)'];
+                }
+
+                foreach ($lines as $line) {
                     $io->text("    <fg=gray>{$line}</>");
                 }
             }
@@ -286,6 +293,14 @@ class RunCommand extends Command
 
             if ($event->result->errorOutput !== '') {
                 $io->text("    <fg=red>{$event->result->errorOutput}</>");
+            }
+
+            if ($event->action instanceof InstructAction && ! $event->warned) {
+                if (str_contains($event->result->errorOutput, 'not found')
+                    || str_contains($event->result->errorOutput, 'not recognized')
+                    || str_contains($event->result->errorOutput, 'not available')) {
+                    $io->text("    <fg=yellow>{$event->action->installInstructions()}</>");
+                }
             }
         });
 

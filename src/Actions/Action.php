@@ -7,12 +7,15 @@ namespace Compose\Actions;
 use Compose\Contracts\Operation;
 use Compose\Enums\Node;
 use Compose\Execution\ActionResult;
+use Compose\Execution\ProcessExecutor;
 use Compose\RecipeContext;
 use RuntimeException;
 
 abstract class Action
 {
     protected ?RecipeContext $context = null;
+
+    protected ?ProcessExecutor $processExecutor = null;
 
     public bool $allowFailure = false;
 
@@ -126,6 +129,26 @@ abstract class Action
         $this->context = $context;
 
         return $this;
+    }
+
+    /**
+     * Set the process executor on this action.
+     */
+    public function withExecutor(ProcessExecutor $executor): static
+    {
+        $this->processExecutor = $executor;
+
+        return $this;
+    }
+
+    /**
+     * Get the process executor, or throw if not set.
+     */
+    protected function executor(): ProcessExecutor
+    {
+        return $this->processExecutor ?? throw new RuntimeException(
+            'Action requires a ProcessExecutor. The runner must call withExecutor() before execution.',
+        );
     }
 
     /**

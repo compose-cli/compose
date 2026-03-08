@@ -8,7 +8,7 @@ use Closure;
 use Compose\Actions\Git\GitBranch;
 use Compose\Actions\Git\GitCheckout;
 use Compose\Actions\Git\GitClone;
-use Compose\Contracts\AI;
+use Compose\Enums\AIAgent;
 use Compose\Enums\FailureStrategy;
 use Compose\Enums\Node;
 use Compose\Enums\TaskType;
@@ -57,14 +57,9 @@ class Compose
     protected bool $commitUsingAI = false;
 
     /**
-     * The default AI provider to use.
+     * The AI CLI agent to use for instruct and smart commits.
      */
-    protected ?string $aiProvider = null;
-
-    /**
-     * The default AI model to use.
-     */
-    protected AI|string|null $aiModel = null;
+    protected AIAgent $aiAgent = AIAgent::Claude;
 
     /**
      * The default node package manager to use.
@@ -196,10 +191,9 @@ class Compose
         return $this;
     }
 
-    public function ai(AI $ai): static
+    public function ai(AIAgent $agent): static
     {
-        $this->aiProvider = $ai->provider();
-        $this->aiModel = $ai->value;
+        $this->aiAgent = $agent;
 
         return $this;
     }
@@ -388,6 +382,7 @@ class Compose
             gitBinary: $this->gitBinary,
             nodeManager: $nodeManager,
             workingDirectory: $workingDirectory,
+            aiAgent: $this->aiAgent,
         );
     }
 
@@ -408,6 +403,7 @@ class Compose
             gitBinary: $this->gitBinary,
             nodeManager: $nodeManager,
             workingDirectory: $this->target,
+            aiAgent: $this->aiAgent,
         );
     }
 
@@ -458,11 +454,6 @@ class Compose
     public function getTarget(): ?string
     {
         return $this->target;
-    }
-
-    public function isUsingAI(): bool
-    {
-        return $this->aiProvider !== null && $this->aiModel !== null;
     }
 
     public function getNodeManager(): Node

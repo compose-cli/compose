@@ -2,7 +2,7 @@
 
 Declarative scaffolding and automation for PHP projects.
 
-Compose lets you describe project setup and feature workflows as a single PHP recipe file — packages, config, file operations, artisan commands — and execute it with one command. Every action is rollbackable, every step is testable, and the recipe reads top to bottom like documentation.
+Compose lets you describe project setup and feature workflows as a single PHP recipe file — packages, config, file operations, artisan commands, AI-directed code generation — and execute it with one command. Every action is rollbackable, every step is testable, and the recipe reads top to bottom like documentation.
 
 ## Why
 
@@ -151,7 +151,8 @@ compose('My App')
     ->node(Node::Pnpm)               // Use pnpm instead of npm
     ->timeout(60)                     // Default process timeout (seconds)
     ->format()                        // Run Pint after each step
-    ->commit(automatically: true);    // Git commit after each step
+    ->commit(automatically: true)     // Git commit after each step
+    ->ai(AIAgent::Claude);            // AI agent for instruct() and smart commits
 ```
 
 **Feature development in an existing project:**
@@ -162,7 +163,8 @@ compose('Add Permissions', type: TaskType::NewFeature)
     ->branch('feature/permissions')              // Create and checkout a new branch
     ->timeout(120)                               // Default process timeout (seconds)
     ->format(pint: true, rector: true)           // Run Rector then Pint after each step
-    ->commit(automatically: true);               // Git commit after each step
+    ->commit(automatically: true, smart: true)   // Git commit after each step, AI-generated messages
+    ->ai(AIAgent::Claude);                       // Use Claude Code for AI-directed steps
 ```
 
 `branch()` accepts an optional `create` parameter: `branch('existing-branch', create: false)` checks out an existing branch without creating it.
@@ -597,7 +599,7 @@ $step
 String assertions are reserved for future AI-powered verification and are currently skipped:
 
 ```php
-$step->verify('The User model uses HasRoles');  // Skipped (AI not available)
+$step->verify('The User model uses HasRoles');  // Skipped (not yet wired to AI)
 ```
 
 `test()` runs test files via `php artisan test`. It accepts a single path or an array:
@@ -622,6 +624,90 @@ $step->commit('feat: initial project setup');
 This stages all changes (`git add -A`) and commits. When `commit(automatically: true)` is set on the recipe, the runner commits after each successful step using either the step's message or a generated message.
 
 **Branching** is configured at the recipe level with `branch()`, which prepends a branch step before your user-defined steps. For new projects, `base()` serves the same role — it prepends a clone step. You don't call these on `Step` directly.
+
+### AI-Directed Code Generation
+
+`instruct()` delegates a task to an AI CLI tool (Claude Code, aider, or Codex). The AI runs in the working directory with full filesystem access. Compose captures changes via git for rollback.
+
+```php
+$step->instruct('Add soft deletes to the Team model and update the migration');
+```
+
+With full configuration:
+
+```php
+$step->instruct('Create a team management dashboard', fn (InstructBuilder $i) => $i
+    ->creating('app/Livewire/Dashboard.php')
+    ->creating('app/Livewire/TeamMemberList.php')
+    ->modifying('routes/web.php')
+    ->using('app/Models/User.php')
+    ->using('app/Models/Team.php')
+    ->using('app/Services/TeamService.php', include: true)
+    ->like('app/Livewire/ProfilePage.php')
+    ->rules([
+        'Use Livewire 3 full-page component syntax',
+        'All properties must be typed',
+    ])
+    ->with(['framework' => 'Livewire', 'php' => '8.3'])
+    ->testing('tests/Feature/DashboardTest.php')
+);
+```
+
+**InstructBuilder methods:**
+
+| Method | Signature | Purpose |
+|---|---|---|
+| `creating` | `creating(string ...$paths)` | Hint that the AI should create these files |
+| `modifying` | `modifying(string ...$paths)` | Hint that the AI should modify these files |
+| `using` | `using(string $path, bool $include = false)` | Context file. Hint-only by default; `include: true` inlines contents into the prompt |
+| `like` | `like(string ...$paths)` | Style reference files (always inlined) |
+| `rules` | `rules(array $rules)` | Freeform rules the AI must follow |
+| `with` | `with(array $context)` | Key-value context pairs (framework, PHP version, etc.) |
+| `testing` | `testing(string ...$paths)` | Test files the AI should create or ensure pass |
+| `bake` | `bake(bool $bake = true)` | Reserved for future patch caching (not yet implemented) |
+
+The `creating()` and `modifying()` hints are soft constraints — the AI may create or modify additional files beyond those listed. `using()` files are listed by path in the prompt so the AI tool knows to read them; pass `include: true` to embed the file contents directly in the prompt (useful for small, critical files). `like()` files are always inlined since the AI needs to see the code to match its style.
+
+**Choosing an AI agent:**
+
+```php
+use Compose\Enums\AIAgent;
+
+compose('My App')
+    ->ai(AIAgent::Claude)   // Default — uses Claude Code CLI
+    ->ai(AIAgent::Aider)    // Uses aider CLI
+    ->ai(AIAgent::Codex)    // Uses OpenAI Codex CLI
+```
+
+Each agent requires its CLI tool to be installed globally. If the tool is missing, the action fails with install instructions. The AI agent is set once on the recipe and applies to all `instruct()` blocks and smart commits.
+
+**Smart commit messages:**
+
+When `commit(smart: true)` is set, the runner uses the AI CLI to generate conventional commit messages from the staged diff instead of using the step name:
+
+```php
+compose('My App')
+    ->commit(automatically: true, smart: true);
+```
+
+If the AI CLI isn't available, smart commits silently fall back to default messages (`compose: {step name}`).
+
+**Mixing manual and AI steps:**
+
+```php
+$recipe
+    ->step('Install', function (Step $step): void {
+        $step->composer(install: ['livewire/livewire']);
+    })
+    ->step('Build', function (Step $step): void {
+        $step
+            ->instruct('Create the dashboard', fn (InstructBuilder $i) => $i
+                ->creating('app/Livewire/Dashboard.php')
+                ->using('app/Models/Team.php')
+            )
+            ->verify(fn () => file_exists('app/Livewire/Dashboard.php'));
+    });
+```
 
 ### Code Quality
 
@@ -672,7 +758,7 @@ Compose has two kinds of actions:
 
 **Command-based actions** (composer, node, git, artisan, sink) shell out via `symfony/process`. They build a `PendingCommand` that resolves to an array of arguments.
 
-**Direct actions** (create, read, copy, append, delete) execute PHP-native filesystem operations. They override `execute(RecipeContext $context)` instead of `command()`.
+**Direct actions** (create, read, copy, append, delete, env, modify, instruct) execute PHP-native logic. They override `execute(RecipeContext $context)` instead of `command()`. The `instruct` action is a special case — it shells out to an AI CLI tool internally via `CLIAgent`, but manages its own process execution rather than going through the command pipeline.
 
 The runner detects which track to use automatically. Both tracks produce `ActionResult` objects and support rollback.
 
@@ -694,6 +780,7 @@ Every action that can be undone defines a rollback. The `RollbackManager` tracks
 | `EnvAction` | Restore original `.env` contents (or delete if created) |
 | `ModifyAction` | Restore original file contents |
 | `ConfigAction` | Restore original file contents |
+| `InstructAction` | Revert modified files via `git checkout`, delete created files |
 | `DeleteFile` | No rollback (destructive) |
 | `ComposerRun`, `ArtisanAction` | No rollback (side effects unknown) |
 | `PintFormat`, `RectorProcess` | No rollback (run outside the step pipeline) |
@@ -742,6 +829,9 @@ Every command-based action runs with a process timeout. The timeout is resolved 
 | `sink` (curl) | 60s | Network download |
 | Pint / Rector | 120s | Code formatting / refactoring |
 | `test` | 300s | Test suites can be slow |
+| `instruct` (Claude) | 900s | AI code generation can be lengthy |
+| `instruct` (Aider) | 600s | AI code generation |
+| `instruct` (Codex) | 600s | AI code generation |
 
 Set the recipe-wide timeout to cap all actions:
 
@@ -810,7 +900,7 @@ src/
 ├── Compose.php                    # Recipe builder & entry point
 ├── Recipe.php                     # Abstract base class for reusable recipes
 ├── Step.php                       # Fluent step builder
-├── RecipeContext.php               # Execution context (binaries, working dir)
+├── RecipeContext.php               # Execution context (binaries, working dir, AI agent)
 ├── Filesystem.php                 # Recursive directory deletion
 ├── helpers.php                    # compose() and slugify() helpers
 │
@@ -818,6 +908,8 @@ src/
 │   ├── Action.php                 # Abstract base (command + direct execution)
 │   ├── PendingCommand.php         # Fluent command builder for shell ops
 │   ├── Sink.php                   # Remote file fetching (GitHub shorthand)
+│   ├── AI/
+│   │   └── InstructAction.php     # AI code generation, rollback via git
 │   ├── Artisan/
 │   │   └── ArtisanAction.php
 │   ├── Config/
@@ -839,7 +931,7 @@ src/
 │   │   └── DeleteFile.php         # Direct execution, no rollback
 │   ├── Git/
 │   │   ├── GitAdd.php
-│   │   ├── GitBranch.php            # Direct execution, rollback restores original branch
+│   │   ├── GitBranch.php          # Direct execution, rollback restores original branch
 │   │   ├── GitCheckout.php
 │   │   ├── GitClone.php
 │   │   ├── GitCommit.php
@@ -857,22 +949,30 @@ src/
 │       ├── PintFormat.php         # Run vendor/bin/pint (checks isInstalled)
 │       └── RectorProcess.php      # Run vendor/bin/rector process (checks isInstalled)
 │
+├── AI/
+│   ├── CLIAgent.php               # AI CLI wrapper (execute, prompt, availability check)
+│   └── Prompts/
+│       ├── InstructPromptBuilder.php      # Builds markdown prompts for code generation
+│       └── CommitMessagePromptBuilder.php # Builds prompts for commit message generation
+│
 ├── Builders/
 │   ├── Artisan.php                # Batch artisan operations builder (+ config)
 │   ├── ConfigBuilder.php          # Fluent config file manipulation builder
 │   ├── EnvBuilder.php             # Fluent .env manipulation builder
+│   ├── InstructBuilder.php        # Fluent AI instruction builder
 │   ├── ModifyBuilder.php          # PHP class, text, and JSON modification builder
 │   └── JsonModifyBuilder.php      # JSON-specific operations (set, merge, remove, push)
 │
 ├── Contracts/
-│   ├── AI.php
 │   ├── CommitMessageGenerator.php
 │   └── Operation.php
 │
 ├── Enums/
+│   ├── AIAgent.php                # Claude, Aider, Codex — binary, command, timeout
 │   ├── ArtisanOperation.php
 │   ├── ConfigOperation.php
 │   ├── EnvOperation.php
+│   ├── InstructOperation.php      # AI instruct operation type
 │   ├── ModifyOperation.php
 │   ├── FailureStrategy.php
 │   ├── FileOperation.php
@@ -907,10 +1007,12 @@ src/
 │   ├── Plan.php                   # Dry-run plan renderer
 │   ├── StepPlan.php
 │   ├── DefaultCommitMessageGenerator.php
+│   ├── AICommitMessageGenerator.php  # AI-powered commit messages via CLIAgent
 │   └── Pipes/
 │       └── ResolveOperations.php
 │
 ├── Payloads/
+│   ├── InstructPayload.php        # Immutable DTO for AI instructions
 │   └── ModifyOperationPayload.php # Typed value object for modify operations
 │
 ├── Support/
@@ -1004,6 +1106,7 @@ The `type` parameter controls which configuration methods are available:
 | `base` | `base(string $repo, ?string $branch = null)` | Clone a base repository as the project foundation (NewProject only). |
 | `branch` | `branch(string $name, bool $create = true)` | Create and checkout (or just checkout) a branch (NewFeature/Refactoring only). |
 | `node` | `node(Node $manager)` | Set node package manager: `Node::Npm`, `Node::Yarn`, `Node::Pnpm`, `Node::Bun`. |
+| `ai` | `ai(AIAgent $agent)` | Set the AI agent for `instruct()` and smart commits. Default: `AIAgent::Claude`. |
 | `commit` | `commit(bool $automatically = false, bool $smart = false)` | Auto-commit after each step. `smart: true` uses AI for commit messages. |
 | `timeout` | `timeout(float $seconds)` | Set the default process timeout for all actions. Overridden by step-level timeouts. |
 | `format` | `format(bool $pint = true, bool $rector = false)` | Run code quality tools after each step. Uses project-installed binaries. |
@@ -1201,6 +1304,39 @@ $step->test(array|string $tests, bool $allowFailure = true);  // Run artisan tes
 $step->commit(?string $message = null);  // git add -A && git commit -m "..."
 ```
 
+### `instruct()`
+
+```php
+// Simple — description only
+$step->instruct('Add soft deletes to the Team model');
+
+// Full — with builder configuration
+$step->instruct('Create dashboard components', fn (InstructBuilder $i) => $i
+    ->creating('app/Livewire/Dashboard.php')
+    ->modifying('routes/web.php')
+    ->using('app/Models/Team.php', include: true)
+    ->like('app/Livewire/ProfilePage.php')
+    ->rules(['Use Livewire 3 syntax'])
+    ->with(['framework' => 'Livewire'])
+    ->testing('tests/Feature/DashboardTest.php')
+);
+```
+
+**InstructBuilder methods:**
+
+| Method | Signature |
+|---|---|
+| `creating` | `creating(string ...$paths)` — files the AI should create |
+| `modifying` | `modifying(string ...$paths)` — files the AI should modify |
+| `using` | `using(string $path, bool $include = false)` — context file; `include: true` inlines contents |
+| `like` | `like(string ...$paths)` — style reference files (always inlined) |
+| `rules` | `rules(array $rules)` — freeform rules for the AI |
+| `with` | `with(array $context)` — key-value context pairs |
+| `testing` | `testing(string ...$paths)` — test files to create or validate |
+| `bake` | `bake(bool $bake = true)` — reserved for future patch caching |
+
+The AI agent is set on the recipe with `->ai(AIAgent::Claude)`. Requires the corresponding CLI tool installed globally. The action detects created/modified files via git and supports full rollback.
+
 ## Complete Recipe Examples
 
 ### Example 1: Laravel SaaS Starter
@@ -1392,6 +1528,78 @@ return compose('API Service')
     });
 ```
 
+### Example 4: AI-Assisted Feature Development
+
+```php
+<?php
+
+use Compose\Step;
+use Compose\Enums\AIAgent;
+use Compose\Enums\TaskType;
+use Compose\Builders\Artisan;
+use Compose\Builders\InstructBuilder;
+use Compose\Builders\ModifyBuilder;
+
+return compose('Team Management', type: TaskType::NewFeature)
+    ->inCwd()
+    ->branch('feature/team-management')
+    ->ai(AIAgent::Claude)
+    ->commit(automatically: true, smart: true)
+    ->format(pint: true)
+
+    ->step('Install & Scaffold', function (Step $step): void {
+        $step
+            ->composer(install: ['spatie/laravel-permission'])
+            ->artisan(fn (Artisan $a) => $a
+                ->makeModel('Team', migration: true, factory: true)
+                ->makeModel('TeamInvitation', migration: true)
+                ->publish(provider: 'Spatie\Permission\PermissionServiceProvider')
+                ->migrate()
+            )
+            ->modify('app/Models/User.php', fn (ModifyBuilder $m) => $m
+                ->addTrait('Spatie\Permission\Traits\HasRoles')
+            );
+    })
+
+    ->step('Build Team Logic', function (Step $step): void {
+        $step
+            ->instruct('Implement the Team model relationships and a TeamService', fn (InstructBuilder $i) => $i
+                ->modifying('app/Models/Team.php')
+                ->creating('app/Services/TeamService.php')
+                ->using('app/Models/User.php', include: true)
+                ->using('app/Models/TeamInvitation.php')
+                ->rules([
+                    'Team belongsToMany User via team_user pivot',
+                    'TeamService handles create, invite, remove member',
+                    'Use strict PHP 8.3 typing',
+                ])
+                ->testing('tests/Feature/TeamServiceTest.php')
+            )
+            ->verify(fn () => file_exists('app/Services/TeamService.php'));
+    })
+
+    ->step('Build API', function (Step $step): void {
+        $step->instruct('Create team API controllers and routes', fn (InstructBuilder $i) => $i
+            ->creating('app/Http/Controllers/Api/TeamController.php')
+            ->creating('app/Http/Controllers/Api/TeamMemberController.php')
+            ->modifying('routes/api.php')
+            ->using('app/Services/TeamService.php', include: true)
+            ->like('app/Http/Controllers/Api/UserController.php')
+            ->rules(['Use API resources', 'Follow RESTful conventions'])
+            ->testing('tests/Feature/TeamApiTest.php')
+        );
+    })
+
+    ->step('Verify', function (Step $step): void {
+        $step
+            ->test([
+                'tests/Feature/TeamServiceTest.php',
+                'tests/Feature/TeamApiTest.php',
+            ])
+            ->assert(fn () => file_exists('app/Services/TeamService.php'));
+    });
+```
+
 ## Rules for Generating Recipes
 
 1. **Always return a `Compose` instance.** The file must `return compose(...)`.
@@ -1422,6 +1630,14 @@ return compose('API Service')
 
 14. **Use `timeout()` for constrained environments.** Every action has a smart default timeout (e.g. 15s for `make:*`, 300s for `composer require`). Set `->timeout()` at the recipe level to override defaults globally, or pass `timeout:` to individual `->step()` calls for per-step control. Step timeouts override the recipe timeout, which overrides smart defaults.
 
+15. **Use `instruct()` when the task is too complex for `create()` or `modify()`.** If you can express the change as a trait addition, method insertion, or text replacement, prefer `modify()`. Use `instruct()` when the AI needs creative latitude — implementing business logic, writing tests, building components from a description.
+
+16. **Provide context to `instruct()` via `using()` and `like()`.** The more context the AI has, the better the output. `using(path, include: true)` inlines file contents for critical context. `like()` gives style references so the AI matches existing code conventions.
+
+17. **Follow `instruct()` with `verify()` or `test()`.** AI output is non-deterministic — always validate that the AI produced the expected files or that tests pass.
+
+18. **Keep `instruct()` scopes focused.** One instruction per logical unit of work. Prefer multiple focused `instruct()` calls over a single monolithic one.
+
 ## Action Types and Their Operation Enums
 
 | Action | Operation Enum | Values |
@@ -1436,6 +1652,7 @@ return compose('API Service')
 | `GitAdd/Clone/Commit/Init` | `GitOperation` | `Clone`, `Init`, `Add`, `Commit`, `Branch`, `Checkout` |
 | `VerifyAction` | `VerifyOperation` | `Verify` |
 | `TestAction` | `VerifyOperation` | `Test` |
+| `InstructAction` | `InstructOperation` | `Instruct` |
 | `PintFormat` | `QualityOperation` | `Format` |
 | `RectorProcess` | `QualityOperation` | `Refactor` |
 
@@ -1453,7 +1670,7 @@ The configured `Node` enum controls command generation:
 
 ## RecipeContext
 
-Every action receives context containing binary paths and working directory:
+Every action receives context containing binary paths, working directory, and AI agent:
 
 ```php
 new RecipeContext(
@@ -1462,6 +1679,7 @@ new RecipeContext(
     gitBinary: 'git',           // Used by git commands
     nodeManager: Node::Npm,     // Used by node commands
     workingDirectory: '/path',  // Resolved path for file operations
+    aiAgent: AIAgent::Claude,   // AI CLI tool for instruct() and smart commits
 );
 ```
 

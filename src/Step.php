@@ -6,6 +6,7 @@ namespace Compose;
 
 use Closure;
 use Compose\Actions\Action;
+use Compose\Actions\AI\InstructAction;
 use Compose\Actions\Artisan\ArtisanAction;
 use Compose\Actions\Composer\ComposerInstall;
 use Compose\Actions\Composer\ComposerRemove;
@@ -25,6 +26,7 @@ use Compose\Actions\Node\NodeRun;
 use Compose\Actions\Sink;
 use Compose\Builders\Artisan;
 use Compose\Builders\EnvBuilder;
+use Compose\Builders\InstructBuilder;
 use Compose\Builders\ModifyBuilder;
 use Compose\Enums\FailureStrategy;
 
@@ -285,6 +287,27 @@ class Step
         $callback($builder);
 
         $this->operations[] = new ModifyAction(path: $file, operations: $builder->operations());
+
+        return $this;
+    }
+
+    /**
+     * Delegate a task to an AI CLI tool.
+     *
+     * The AI runs in the working directory with full filesystem access.
+     * Compose captures changes via git for rollback and optional patch caching.
+     *
+     * @param  Closure(InstructBuilder): void|null  $callback
+     */
+    public function instruct(string $description, ?Closure $callback = null): static
+    {
+        $builder = new InstructBuilder;
+
+        if ($callback !== null) {
+            $callback($builder);
+        }
+
+        $this->operations[] = new InstructAction($builder->toPayload($description));
 
         return $this;
     }

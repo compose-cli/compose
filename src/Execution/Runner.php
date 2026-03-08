@@ -10,6 +10,7 @@ use Compose\Actions\Git\GitCommit;
 use Compose\Actions\Git\GitInit;
 use Compose\Actions\Quality\PintFormat;
 use Compose\Actions\Quality\RectorProcess;
+use Compose\AI\CLIAgent;
 use Compose\Contracts\CommitMessageGenerator;
 use Compose\Enums\FailureStrategy;
 use Compose\Events\ActionCompleted;
@@ -44,6 +45,17 @@ class Runner
         $projectContext = $config->context;
         $rollback = new RollbackManager;
         $stepResults = [];
+
+        if ($config->smartCommit) {
+            $agent = new CLIAgent($this->executor, $projectContext->aiAgent);
+
+            if ($agent->isAvailable()) {
+                $this->commitMessageGenerator = new AICommitMessageGenerator(
+                    $agent,
+                    $projectContext,
+                );
+            }
+        }
 
         foreach ($config->beforeCallbacks as $callback) {
             $callback();

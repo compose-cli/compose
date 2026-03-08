@@ -1,6 +1,7 @@
 <?php
 
 use Compose\Contracts\Operation;
+use Compose\Enums\AIAgent;
 use Compose\Enums\Node;
 use Compose\RecipeContext;
 use Compose\Tests\Concerns\InteractsWithFilesystem;
@@ -28,6 +29,7 @@ function context(
     string $gitBinary = 'git',
     Node $nodeManager = Node::Npm,
     ?string $workingDirectory = null,
+    AIAgent $aiAgent = AIAgent::Claude,
 ): RecipeContext {
     return new RecipeContext(
         phpBinary: $phpBinary,
@@ -35,6 +37,7 @@ function context(
         gitBinary: $gitBinary,
         nodeManager: $nodeManager,
         workingDirectory: $workingDirectory,
+        aiAgent: $aiAgent,
     );
 }
 

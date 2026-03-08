@@ -31,6 +31,7 @@ class ExecuteActions
 
         foreach ($context->step->operations() as $action) {
             $action->withContext($context->recipeContext);
+            $action->withExecutor($context->executor);
 
             if ($preflightFailure = $this->runPreflight($action, $context)) {
                 $actionResults[] = $preflightFailure;

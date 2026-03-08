@@ -141,7 +141,7 @@ class FakeProcessExecutor
      */
     protected function matchesPattern(string $subject, string $pattern): bool
     {
-        $regex = '/^'.str_replace('\*', '.*', preg_quote($pattern, '/')).'$/';
+        $regex = '/^'.str_replace('\*', '.*', preg_quote($pattern, '/')).'$/s';
 
         return (bool) preg_match($regex, $subject);
     }
