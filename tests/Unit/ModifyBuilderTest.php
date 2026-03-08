@@ -171,6 +171,37 @@ describe('ModifyBuilder', function (): void {
 
     });
 
+    describe('mixed-operation validation', function (): void {
+
+        it('throws when mixing PHP class operations with JSON operations', function (): void {
+            $builder = new ModifyBuilder;
+            $builder->addTrait('HasRoles');
+            $builder->json(fn (JsonModifyBuilder $j) => $j->set('name', 'app'));
+
+            $builder->operations();
+        })->throws(\LogicException::class, 'Cannot mix PHP class operations and JSON operations');
+
+        it('allows mixing text operations with PHP class operations', function (): void {
+            $builder = new ModifyBuilder;
+            $builder->addTrait('HasRoles')
+                ->replace('old', 'new')
+                ->append('footer');
+
+            $ops = $builder->operations();
+            expect($ops)->toHaveCount(3);
+        });
+
+        it('allows mixing text operations with JSON operations', function (): void {
+            $builder = new ModifyBuilder;
+            $builder->replace('old', 'new');
+            $builder->json(fn (JsonModifyBuilder $j) => $j->set('name', 'app'));
+
+            $ops = $builder->operations();
+            expect($ops)->toHaveCount(2);
+        });
+
+    });
+
     describe('chaining', function (): void {
 
         it('supports fluent method chaining across all operation types', function (): void {

@@ -10,6 +10,14 @@ use Compose\Execution\ActionResult;
 use Compose\RecipeContext;
 use Symfony\Component\Process\Process;
 
+/**
+ * Creates and checks out a new git branch.
+ *
+ * This action creates Process instances directly rather than going through
+ * ProcessExecutor. As a result, ProcessExecutor::fake() will not intercept
+ * its commands. Tests for this action should use real git repos in temp
+ * directories instead of relying on the fake executor.
+ */
 class GitBranch extends Action
 {
     protected ?string $originalBranch = null;

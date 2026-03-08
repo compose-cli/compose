@@ -1,21 +1,15 @@
-# Compose — Corrections Plan
+Fix Corrections Issues
 
-This document contains concrete fixes for bugs, inconsistencies, and correctness issues in the Compose codebase. Each item is scoped, actionable, and includes the rationale and affected files. Work through them in order — some later items depend on earlier ones.
+All 9 issues from corrections.md have been verified as still present. Below is the fix plan for each, in order.
 
----
 
-## 2. `Step::operations()` Silently Returns Empty Before Resolution
 
-**Problem:** If `operations()` is called before `resolveOperations()`, it returns an empty array with no warning. This is a latent bug — any code path that forgets to resolve first gets silent no-ops.
+2. Step::operations() Lazy Resolution
 
-**Affected file:** `src/Step.php`
+File: src/Step.php
 
-**Fix:** Make `operations()` call `resolveOperations()` lazily:
+The operations() method (line ~326) returns $this->operations without checking $this->resolved. Fix: add a lazy resolution guard.
 
-```php
-/**
- * @return Action[]
- */
 public function operations(): array
 {
     if (! $this->resolved) {
@@ -24,236 +18,208 @@ public function operations(): array
 
     return $this->operations;
 }
-```
 
-This makes the resolution idempotent and eliminates the ordering dependency. The `ResolveOperations` pipe becomes a no-op rather than a critical ordering requirement, which is safer.
+No test changes needed — this is a defensive fix that makes existing behavior more robust.
 
----
 
-## 3. `EnvAction::countOperations()` Is a No-Op
 
-**Problem:** The private method `countOperations()` counts every operation as 1 regardless of type. The method body is identical to just calling `count($operations)`. It looks like it was intended to handle `when` blocks differently (e.g., counting inner operations) but was never completed.
+3. Remove Dead countOperations()
 
-**Affected file:** `src/Actions/Env/EnvAction.php`
+File: src/Actions/Env/EnvAction.php
 
-**Fix:** Remove the method entirely and replace its two call sites with `count($this->operations)`:
+The private countOperations() method (line ~150) counts every operation as 1 regardless of type ($op['type'] === 'when' ? 1 : 1). Replace its two call sites with count($this->operations) and delete the method.
 
-```php
-// In execute():
-$opCount = count($this->operations);
 
-// In describe():
-$opCount = count($this->operations);
-```
 
-Delete the `countOperations()` method.
+4 + 8. Convert Sink to Direct Execution (also fixes force-skip bug)
 
----
+Files: src/Actions/Sink.php, tests/Unit/SinkActionTest.php
 
-## 4. `Sink` Action Should Use PHP-Native HTTP Instead of Shelling to `curl`
+Convert Sink from a command-based (curl) action to a direct-execution action:
 
-**Problem:** `Sink` builds a `curl` command via `PendingCommand`. This means:
-- It won't work on Windows without curl installed
-- It can't be tested without `ProcessExecutor::fake()`
-- It's inconsistent with other file operations that use direct execution
 
-**Affected file:** `src/Actions/Sink.php`
 
-**Fix:** Convert `Sink` to a direct-execution action. Remove the `command()` override and implement `execute()` instead:
 
-```php
-#[\Override]
-public function execute(RecipeContext $context): ActionResult
-{
-    $url = $this->resolveUrl();
-    $target = $this->resolvePath($this->resolveTarget());
 
-    $directory = dirname($target);
-    if (!is_dir($directory) && !mkdir($directory, 0755, true)) {
-        return ActionResult::failure(
-            errorOutput: "Failed to create directory: {$directory}",
-            command: $this->descriptionArray(),
-        );
-    }
+Remove command() override
 
-    if (!$this->force && file_exists($target)) {
-        return ActionResult::success(
-            command: $this->descriptionArray(),
-            output: "Skipped (exists): {$this->resolveTarget()}",
-        );
-    }
 
-    $contents = @file_get_contents($url);
 
-    if ($contents === false) {
-        return ActionResult::failure(
-            errorOutput: "Failed to fetch: {$url}",
-            command: $this->descriptionArray(),
-        );
-    }
+Implement execute() using file_get_contents / file_put_contents
 
-    if (file_put_contents($target, $contents) === false) {
-        return ActionResult::failure(
-            errorOutput: "Failed to write: {$this->resolveTarget()}",
-            command: $this->descriptionArray(),
-        );
-    }
 
-    return ActionResult::success(
-        command: $this->descriptionArray(),
-        output: "Fetched: {$this->resolveTarget()} (" . strlen($contents) . " bytes)",
-    );
-}
-```
 
-Also convert the rollback to `rollbackDirect()`:
+Add force: false skip guard (!$this->force && file_exists($target) early return)
 
-```php
-#[\Override]
-public function canRollbackDirect(): bool
-{
-    return $this->force;
-}
 
-#[\Override]
-public function rollbackDirect(RecipeContext $context): ActionResult
-{
-    $target = $this->resolvePath($this->resolveTarget());
 
-    if (file_exists($target)) {
-        unlink($target);
-    }
+Convert rollback from rollback() / canBeRolledBack() to rollbackDirect() / canRollbackDirect()
 
-    return ActionResult::success(
-        command: ['rollback:sink', $this->resolveTarget()],
-        output: "Deleted: {$this->resolveTarget()}",
-    );
-}
-```
 
-Remove the old `command()`, `rollback()`, and `canBeRolledBack()` methods. Add a private `descriptionArray()` method returning `['sink', $this->resolveTarget()]`.
 
-**Update the test** (`tests/Unit/SinkActionTest.php`) — it likely uses `toGenerateCommand()` expectations. Convert those tests to use the filesystem trait and test actual file creation/rollback instead.
+Add private descriptionArray() helper
 
----
 
-## 5. `Artisan` Builder Mixes Strings and Action Objects in `$entries`
 
-**Problem:** The `Artisan` builder's `config()` method pushes `ConfigAction` instances directly into `$entries`, while all other methods push strings. The `actions()` method then checks `is_string($entry)` to decide whether to wrap in `ArtisanAction`. This inconsistency means:
-- Config actions bypass any future transformation logic added to `actions()`
-- The `$entries` type is `list<string|Action>` which is awkward
-- The builder is leaking action construction responsibility
+Update tests to use InteractsWithFilesystem trait and test actual file I/O instead of toGenerateCommand()
 
-**Affected file:** `src/Builders/Artisan.php`
 
-**Fix:** Store config operations separately and merge them in `actions()`:
 
-```php
-/** @var list<string> */
-protected array $commands = [];
+5. Clean Up Artisan Builder Entry Types (keep interleaved ordering)
 
-/** @var list<Action> */
-protected array $configActions = [];
-```
+File: src/Builders/Artisan.php
 
-Change `run()` and all methods that call it to push to `$this->commands`. Change `config()` to push to `$this->configActions`. Then:
+The $entries array is list<string|Action> which mixes raw strings with ConfigAction objects. The user wants to keep interleaved ordering. Fix approach:
 
-```php
-/**
- * @return list<Action>
- */
+
+
+
+
+Introduce a lightweight tagged union — e.g., store all entries as array{type: 'command', value: string} | array{type: 'action', value: Action} — so the array has a uniform structure
+
+
+
+Update run() to push ['type' => 'command', 'value' => $command]
+
+
+
+Update config() to push ['type' => 'action', 'value' => new ConfigAction(...)]
+
+
+
+Update actions() to map over the unified array:
+
 public function actions(): array
 {
-    $actions = array_map(
-        fn (string $command): ArtisanAction => new ArtisanAction($command),
-        $this->commands,
+    return array_map(
+        fn (array $entry): Action => $entry['type'] === 'command'
+            ? new ArtisanAction($entry['value'])
+            : $entry['value'],
+        $this->entries,
     );
-
-    return array_merge($actions, $this->configActions);
 }
-```
 
-**Note:** This changes the ordering — config actions will now come after all artisan commands rather than being interleaved at their declaration position. If ordering matters (e.g., a config change must happen between two artisan commands), a more involved approach is needed: use a tagged union array like `['type' => 'command', 'value' => '...']` and `['type' => 'action', 'value' => $configAction]`. Decide which behavior is correct and document it.
+This preserves interleaved ordering while making the data structure self-documenting.
 
-^ **I want to keep the interleaved at declaration position behavior**
 
----
 
-## 6. Duplicated Argument Separator Logic in `ComposerRun` and `NodeRun`
+6. Extract Arg Separator to PendingCommand
 
-**Problem:** Both `ComposerRun` and `NodeRun` manually handle `--` argument separators. `NodeRun` additionally checks the package manager to decide whether to use a separator. This logic is duplicated and should live in `PendingCommand`.
+Files: src/Actions/PendingCommand.php, src/Actions/Composer/ComposerRun.php, src/Actions/Node/NodeRun.php
 
-**Affected files:**
-- `src/Actions/PendingCommand.php`
-- `src/Actions/Composer/ComposerRun.php`
-- `src/Actions/Node/NodeRun.php`
 
-**Fix:** Add a `withArgs()` method to `PendingCommand` that accepts args and an optional separator:
+
+
+
+Add withArgs(array $args, ?string $separator = '--'): static to PendingCommand
+
+
+
+Simplify ComposerRun::command() to use ->withArgs((array) $this->args)
+
+
+
+Simplify NodeRun::command() to use ->withArgs((array) $this->args, $usesSeparator ? '--' : null)
+
+
+
+Existing tests for ComposerRun and NodeRun should continue to pass since behavior is unchanged
+
+
+
+7. Harden Dangerous Path Guard
+
+CRITICAL WARNING: See fix-7-critical-bug.md for a detailed post-mortem. A previous attempt at this fix caused Filesystem::deleteDirectory() to delete the project's parent directory because normalizePath() was only applied as a fallback when realpath() returned false. On Windows, realpath() returns backslash paths, so the forward-slash parent check silently failed.
+
+File: src/Execution/Runner.php
+
+The guardAgainstDangerousPath() method (line ~173) is missing:
+
+
+
+
+
+Parent-of-cwd check (deleting an ancestor directory is dangerous)
+
+
+
+Consistent path normalization — normalizePath() must wrap all path values including successful realpath() results, not just the fallback
+
+Fix: Add a normalizePath() helper that does rtrim(str_replace('\\', '/', $path), '/'). Apply it unconditionally to every resolved path:
+
+$resolved = $this->normalizePath(realpath($path) ?: $path);
+$cwd = $this->normalizePath(realpath((string) getcwd()) ?: (string) getcwd());
+
+NOT this (broken on Windows):
+
+$resolved = realpath($path) ?: $this->normalizePath($path);  // WRONG
+
+Add parent-of-cwd check via str_starts_with($cwd, $resolved . '/').
+
+Add tests for:
+
+
+
+
+
+Path that is a parent of cwd
+
+
+
+Empty string path
+
+
+
+9. Document GitBranch ProcessExecutor Bypass
+
+File: src/Actions/Git/GitBranch.php
+
+Per the corrections doc recommendation (Option A): add a documentation comment explaining that GitBranch creates Process instances directly and bypasses ProcessExecutor::fake(). Tests for this action should use actual git repos in temp directories. Verify existing tests already do this or update them if needed.
+
+
+
+10. ModifyBuilder Mixed-Operation Validation
+
+File: src/Builders/ModifyBuilder.php
+
+Add validation in operations() that throws \LogicException when both PHP class operations and JSON operations are present in the same builder. Detect PHP ops by their type field (add_trait, remove_trait, add_interface, etc.) and JSON ops by the json_ prefix.
+
+
+
+Execution Order
+
+Items 2, 3, 9, and 10 are independent leaf changes. Items 4+8 are coupled. Item 6 is self-contained. Items 5 and 7 are independent. All can be done in the listed order. Run composer check after all changes.
+
+Fix #7 must be applied with extreme care. The guardAgainstDangerousPath method gates Filesystem::deleteDirectory() — if the guard fails to throw, real directories get deleted. Run the fresh guard tests in isolation first (vendor/bin/pest --filter="Runner fresh guard") and verify they pass before running the full suite. See fix-7-critical-bug.md for the full post-mortem.
+
+Status (at time of repo deletion)
+
+Fixes 2, 3, 4+8, 5, 6, 9, and 10 were applied and all their tests were passing. Fix 7 was applied with the normalization bug described above, which caused the test suite to delete src/ and other directories. All fixes need to be re-applied from a fresh clone.
+
+
+# Critical Bug: Fix #7 guardAgainstDangerousPath — Windows Path Normalization
+
+## What Happened
+
+While applying fix #7 (harden `guardAgainstDangerousPath()`), a new parent-of-cwd check was added that used forward-slash comparison:
 
 ```php
-/**
- * Add arguments after an optional separator (e.g. '--').
- *
- * @param string[] $args
- */
-public function withArgs(array $args, ?string $separator = '--'): static
-{
-    if ($args === []) {
-        return $this;
-    }
-
-    if ($separator !== null) {
-        $this->arguments[] = $separator;
-    }
-
-    array_push($this->arguments, ...$args);
-
-    return $this;
-}
+if (str_starts_with($cwd, $resolved . '/')) {
 ```
 
-Then simplify `ComposerRun::command()`:
+On Windows, `realpath()` returns paths with **backslashes** (e.g. `C:\Users\Wyatt\Desktop\Projects`). The normalization helper (`normalizePath()`) was only applied as a **fallback** when `realpath()` returned false — meaning existing, resolvable paths kept their Windows backslashes.
 
-```php
-public function command(): PendingCommand
-{
-    return $this->composer('run', $this->script)
-        ->withArgs((array) $this->args);
-}
-```
+This caused the parent-of-cwd check to silently fail: `str_starts_with('C:\...\compose', 'C:\...\Projects/')` is always false on Windows because the separator doesn't match.
 
-And `NodeRun::command()`:
+Because the guard didn't throw, the test `'throws when fresh mode targets a parent of the current working directory'` proceeded past the guard and `Filesystem::deleteDirectory()` was called on the parent of cwd, deleting the `src/`, `config/`, and other directories in the project.
 
-```php
-public function command(): PendingCommand
-{
-    $usesRun = match ($this->manager()) {
-        Node::Yarn, Node::Bun => false,
-        default => true,
-    };
+## Root Cause
 
-    $usesSeparator = match ($this->manager()) {
-        Node::Yarn, Node::Bun => false,
-        default => true,
-    };
+`normalizePath()` must be applied **unconditionally** to both `realpath()` results and fallback values — not just when `realpath()` returns false.
 
-    $cmd = $usesRun
-        ? $this->node('run', $this->script)
-        : $this->node($this->script);
+## The Correct Fix
 
-    return $cmd->withArgs((array) $this->args, $usesSeparator ? '--' : null);
-}
-```
-
----
-
-## 7. `DangerousPathException` Guard Doesn't Handle Symlinks or Edge Cases
-
-**Problem:** In `Runner::guardAgainstDangerousPath()`, `realpath()` returns `false` for non-existent paths, and the fallback to the raw path means comparisons against `realpath(getcwd())` can fail due to normalization differences. Symlinks are also not resolved consistently.
-
-**Affected file:** `src/Execution/Runner.php`
-
-**Fix:** Normalize paths consistently before comparison:
+In `src/Execution/Runner.php`, the `guardAgainstDangerousPath()` method should **always** normalize paths through the helper, even when `realpath()` succeeds:
 
 ```php
 private function guardAgainstDangerousPath(?string $path): void
@@ -264,9 +230,8 @@ private function guardAgainstDangerousPath(?string $path): void
         );
     }
 
-    // Normalize: resolve what exists, otherwise normalize separators
-    $resolved = realpath($path) ?: rtrim(str_replace('\\', '/', $path), '/');
-    $cwd = realpath((string) getcwd()) ?: rtrim(str_replace('\\', '/', (string) getcwd()), '/');
+    $resolved = $this->normalizePath(realpath($path) ?: $path);
+    $cwd = $this->normalizePath(realpath((string) getcwd()) ?: (string) getcwd());
 
     if ($resolved === $cwd || $resolved === '.') {
         throw new DangerousPathException(
@@ -274,7 +239,6 @@ private function guardAgainstDangerousPath(?string $path): void
         );
     }
 
-    // Also check if the target is a parent of cwd (deleting a parent is dangerous)
     if (str_starts_with($cwd, $resolved . '/')) {
         throw new DangerousPathException(
             "Cannot use fresh mode: the path '{$path}' is a parent of the current working directory.",
@@ -284,7 +248,7 @@ private function guardAgainstDangerousPath(?string $path): void
     $home = $_SERVER['HOME'] ?? $_SERVER['USERPROFILE'] ?? null;
 
     if ($home !== null) {
-        $resolvedHome = realpath($home) ?: rtrim(str_replace('\\', '/', $home), '/');
+        $resolvedHome = $this->normalizePath(realpath($home) ?: $home);
         if ($resolved === $resolvedHome) {
             throw new DangerousPathException(
                 "Cannot use fresh mode: the path '{$path}' resolves to the home directory.",
@@ -302,107 +266,48 @@ private function guardAgainstDangerousPath(?string $path): void
         );
     }
 }
-```
 
-**Add tests** for the new parent-directory check and the empty-string edge case.
-
----
-
-## 8. `Sink` Doesn't Guard Against `force: false` Skip Correctly
-
-**Problem:** In the current (curl-based) implementation, there's no check for `force: false` before executing the curl command. The rollback method returns null when `!$this->force`, but the download still happens and overwrites the file.
-
-**Affected file:** `src/Actions/Sink.php`
-
-**Fix:** If you do correction #4 (convert to direct execution), this is handled in that implementation with the early return for `!$this->force && file_exists($target)`. If you keep the curl-based approach for any reason, add a `execute()` override that checks for the skip condition before falling through to command execution:
-
-```php
-#[\Override]
-public function execute(RecipeContext $context): ?ActionResult
+private function normalizePath(string $path): string
 {
-    if (!$this->force) {
-        $target = $this->resolvePath($this->resolveTarget());
-        if (file_exists($target)) {
-            return ActionResult::success(
-                command: ['sink', $this->resolveTarget()],
-                output: "Skipped (exists): {$this->resolveTarget()}",
-            );
-        }
-    }
-
-    return null; // fall through to command-based execution
+    return rtrim(str_replace('\\', '/', $path), '/');
 }
 ```
 
----
+The key difference from the broken version:
 
-## 9. `GitBranch` Creates Process Instances Directly Instead of Using `ProcessExecutor`
-
-**Problem:** `GitBranch::execute()` and `rollbackDirect()` create `Symfony\Component\Process\Process` instances directly, bypassing `ProcessExecutor`. This means these operations aren't captured by `ProcessExecutor::fake()` during testing — they'll actually try to run git commands even when faked.
-
-**Affected file:** `src/Actions/Git/GitBranch.php`
-
-**Fix:** This is a design tension — direct-execution actions receive `RecipeContext` but not `ProcessExecutor`. Two options:
-
-**Option A (minimal):** Accept the inconsistency but document it. Add a note to `GitBranch` that it bypasses the fake. Ensure tests for `GitBranch` use the filesystem trait and actual git repos in temp directories rather than relying on `ProcessExecutor::fake()`.
-
-**Option B (cleaner):** Refactor `GitBranch` to be a command-based action. The original branch detection can move to a preflight-like mechanism, or the runner can handle it. This is more invasive but makes testing consistent.
-
-Recommend **Option A** for now with a `// Note:` comment, and revisit if the inconsistency causes real test pain.
-
----
-
-## 10. `ModifyBuilder` Allows Invalid Operation Combinations Without Validation
-
-**Problem:** A user can call PHP class operations (`addTrait`) and JSON operations (`json()`) on the same `ModifyBuilder`. This will always fail at execution time in `ModifyAction` because PHP ops require `.php` files and JSON ops require `.json` files. The error comes late and is confusing.
-
-**Affected file:** `src/Builders/ModifyBuilder.php`
-
-**Fix:** Add validation in `operations()` that checks for conflicting operation categories:
-
-```php
-public function operations(): array
-{
-    $hasPhp = false;
-    $hasJson = false;
-
-    foreach ($this->operations as $op) {
-        if (in_array($op->type, [
-            'add_trait', 'remove_trait', 'add_interface', 'add_import', 'remove_import',
-            'add_method', 'add_property', 'add_constant', 'add_to_array', 'add_to_method',
-            'remove_method',
-        ])) {
-            $hasPhp = true;
-        }
-
-        if (str_starts_with($op->type, 'json_')) {
-            $hasJson = true;
-        }
-    }
-
-    if ($hasPhp && $hasJson) {
-        throw new \LogicException(
-            'ModifyBuilder cannot mix PHP class operations with JSON operations. '
-            . 'Use separate modify() calls for different file types.'
-        );
-    }
-
-    return $this->operations;
-}
+```diff
+- $resolved = realpath($path) ?: $this->normalizePath($path);
+- $cwd = realpath((string) getcwd()) ?: $this->normalizePath((string) getcwd());
++ $resolved = $this->normalizePath(realpath($path) ?: $path);
++ $cwd = $this->normalizePath(realpath((string) getcwd()) ?: (string) getcwd());
 ```
 
----
+And likewise for the home directory:
 
-## Summary Checklist
+```diff
+- $resolvedHome = realpath($home) ?: $this->normalizePath($home);
++ $resolvedHome = $this->normalizePath(realpath($home) ?: $home);
+```
 
-| # | Fix | Severity | Files |
-|---|-----|----------|-------|
-| 2 | `Step::operations()` lazy resolution | Defensive | `Step.php` |
-| 3 | Remove dead `countOperations()` | Cleanup | `EnvAction.php` |
-| 4 | Convert `Sink` to direct execution | Improvement | `Sink.php`, tests |
-| 5 | Split `Artisan` builder entry types | Consistency | `Artisan.php` |
-| 6 | Extract arg separator to `PendingCommand` | DRY | `PendingCommand`, `ComposerRun`, `NodeRun` |
-| 7 | Harden dangerous path guard | Defensive | `Runner.php` |
-| 8 | `Sink` force-skip bug | **Bug** | `Sink.php` |
-| 9 | `GitBranch` bypasses fake executor | Test gap | `GitBranch.php` |
-| 10 | `ModifyBuilder` mixed-operation validation | Defensive | `ModifyBuilder.php` |
+## Test for This
+
+The test added to `tests/Unit/RunnerTest.php` inside `describe('Runner fresh guard', ...)` is still correct — it just needs the fix above to not be destructive:
+
+```php
+it('throws when fresh mode targets a parent of the current working directory', function (): void {
+    ProcessExecutor::fake();
+
+    $parent = dirname((string) getcwd());
+
+    $recipe = compose('Test Recipe')
+        ->in($parent, fresh: true);
+
+    $recipe->step('Install', fn (Step $step) => $step->composer(install: ['pkg']));
+
+    $recipe->run();
+})->throws(DangerousPathException::class);
+```
+
+## Lesson
+
+Any path comparison logic that involves separators (prefix checks, suffix checks, contains checks) must normalize **all** paths to a consistent separator **before** comparison — even when `realpath()` succeeds. `realpath()` returns OS-native separators, which differ between Windows (`\`) and Unix (`/`).

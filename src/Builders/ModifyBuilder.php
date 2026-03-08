@@ -214,9 +214,33 @@ class ModifyBuilder
 
     /**
      * @return list<ModifyOperationPayload>
+     *
+     * @throws \LogicException When PHP class operations and JSON operations are mixed.
      */
     public function operations(): array
     {
+        $hasPhpClass = false;
+        $hasJson = false;
+
+        foreach ($this->operations as $op) {
+            if (str_starts_with($op->type, 'json_')) {
+                $hasJson = true;
+            } elseif (in_array($op->type, [
+                'add_trait', 'remove_trait', 'add_interface',
+                'add_import', 'remove_import', 'add_method',
+                'add_property', 'add_constant', 'add_to_array',
+                'add_to_method', 'remove_method',
+            ], true)) {
+                $hasPhpClass = true;
+            }
+
+            if ($hasPhpClass && $hasJson) {
+                throw new \LogicException(
+                    'Cannot mix PHP class operations and JSON operations in the same ModifyBuilder.',
+                );
+            }
+        }
+
         return $this->operations;
     }
 }

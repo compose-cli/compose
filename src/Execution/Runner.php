@@ -179,8 +179,8 @@ class Runner
             );
         }
 
-        $resolved = realpath($path) ?: $this->normalizePath($path);
-        $cwd = realpath((string) getcwd()) ?: $this->normalizePath((string) getcwd());
+        $resolved = $this->normalizePath(realpath($path) ?: $path);
+        $cwd = $this->normalizePath(realpath((string) getcwd()) ?: (string) getcwd());
 
         if ($resolved === $cwd || $resolved === '.') {
             throw new DangerousPathException(
@@ -197,7 +197,7 @@ class Runner
         $home = $_SERVER['HOME'] ?? $_SERVER['USERPROFILE'] ?? null;
 
         if ($home !== null) {
-            $resolvedHome = realpath($home) ?: $this->normalizePath($home);
+            $resolvedHome = $this->normalizePath(realpath($home) ?: $home);
             if ($resolved === $resolvedHome) {
                 throw new DangerousPathException(
                     "Cannot use fresh mode: the path '{$path}' resolves to the home directory.",

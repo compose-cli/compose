@@ -45,7 +45,7 @@
     "scripts": {
         "test": "vendor/bin/pest",
         "format": "vendor/bin/pint",
-        "rector": "vendor/bin/rector process",
+        "rector": "vendor/bin/rector process --debug",
         "rector:dry": "vendor/bin/rector process --dry-run",
         "check": [
             "@rector",
