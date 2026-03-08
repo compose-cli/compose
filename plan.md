@@ -4,18 +4,6 @@ This document tracks all planned refactors, fixes, and new features for Compose,
 
 ---
 
-## Priority 1 - complete
-
-## Priority 2 - complete
-
-## Priority 3 - complete
-
-## Priority 4 - complete
-
-## Priority 5 - complete
-
-## Priority 6 - complete
-
 ## Priority 7: AI Integration
 
 ### 7.1 Instruct — AI-Directed Code Generation
@@ -105,20 +93,3 @@ $step->instruct('Create a dashboard with team memberships', fn (Instruct $i) => 
 - [ ] Add tests for generator output
 
 ---
-
-## Priority 9 - complete
-
-## Dependency Notes
-
-| Feature | Depends On |
-|---------|-----------|
-| Laravel helpers (3.2) | Artisan actions (3.1) |
-| Config manipulation (3.5) | Nette integration (4.1) or standalone parser |
-| Modify builder (4.1) | Nette PHP Generator (already in deps) |
-| Recipe system (5.1) | None — can be built independently |
-| Instruct (7.1) | Modify (4.1), AI providers, action AI affordances |
-| Smart commits (7.2) | AI providers |
-| Error recovery (7.3) | AI providers |
-| MCP server (8.1) | Action AI affordances from 7.1 |
-| Skill generator (8.2) | Action metadata from 7.1 |
-| `--from` resume (9.1) | Rollback scope refactor (2.4) |
