@@ -188,7 +188,7 @@ class Runner
             );
         }
 
-        if (str_starts_with($cwd, $resolved . '/')) {
+        if (str_starts_with($cwd, $resolved.'/')) {
             throw new DangerousPathException(
                 "Cannot use fresh mode: the path '{$path}' is a parent of the current working directory.",
             );

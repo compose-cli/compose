@@ -153,7 +153,7 @@ describe('Sink', function (): void {
 
             expect($result->successful)->toBeTrue()
                 ->and($result->output)->toContain('Skipped (exists)')
-                ->and(file_get_contents($this->tempPath . DIRECTORY_SEPARATOR . $target))->toBe('original content');
+                ->and(file_get_contents($this->tempPath.DIRECTORY_SEPARATOR.$target))->toBe('original content');
         });
 
     });
@@ -207,7 +207,7 @@ describe('Sink', function (): void {
             $result = $action->rollbackDirect(context(workingDirectory: $this->tempPath));
 
             expect($result->successful)->toBeTrue()
-                ->and(file_exists($this->tempPath . DIRECTORY_SEPARATOR . $target))->toBeFalse();
+                ->and(file_exists($this->tempPath.DIRECTORY_SEPARATOR.$target))->toBeFalse();
         });
 
     });

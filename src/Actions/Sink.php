@@ -72,7 +72,7 @@ class Sink extends Action
 
         return ActionResult::success(
             command: $this->descriptionArray(),
-            output: "Fetched: {$this->resolveTarget()} (" . strlen($contents) . ' bytes)',
+            output: "Fetched: {$this->resolveTarget()} (".strlen($contents).' bytes)',
         );
     }
 
