@@ -78,4 +78,33 @@ describe('Plan', function (): void {
         expect($plan->steps[0]->commands[0])->toBe('yarn add vue');
     });
 
+    it('includes rollbackable auto-commit in the plan', function (): void {
+        $recipe = compose('Test')->commit(automatically: true);
+        $recipe->step('Install', fn (Step $step) => $step->composer(install: ['pkg']), message: 'feat: install');
+
+        $plan = $recipe->plan();
+
+        expect($plan->steps[0]->commands)->toBe([
+            'composer require pkg',
+            'git commit -m feat: install',
+        ]);
+        expect($plan->steps[0]->rollbackable)->toBe([true, true]);
+    });
+
+    it('does not duplicate auto-commit when step already commits manually', function (): void {
+        $recipe = compose('Test')->commit(automatically: true);
+        $recipe->step('Install', function (Step $step): void {
+            $step
+                ->composer(install: ['pkg'])
+                ->commit('manual');
+        });
+
+        $plan = $recipe->plan();
+
+        expect($plan->steps[0]->commands)->toBe([
+            'composer require pkg',
+            'git commit -m manual',
+        ]);
+    });
+
 });

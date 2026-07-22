@@ -9,6 +9,7 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Process\Process;
 
 function writeRecipe(string $dir, string $body): string
 {
@@ -460,18 +461,12 @@ describe('RunCommand auto-commit styling', function (): void {
                 command: ['composer', 'require', 'pkg'],
                 output: 'installed',
             ),
-            'git add -A' => ActionResult::success(
-                command: ['git', 'add', '-A'],
-                output: '',
-            ),
-            'git commit *' => ActionResult::success(
-                command: ['git', 'commit', '-m', 'compose: Install'],
-                output: '',
-            ),
         ]);
 
-        $recipe = writeRecipe($this->tempPath, <<<'PHP'
-        return compose('Test')->in('.')->commit(automatically: true)->step('Install', fn(Step $step) => $step->composer(install: ['pkg']));
+        $recipe = writeRecipe($this->tempPath, <<<PHP
+        return compose('Test')->in('{$this->tempPath}')->commit(automatically: true)->step('Install', function(Step \$step) {
+            \$step->composer(install: ['pkg'])->create('installed.txt', 'pkg');
+        });
         PHP);
 
         [$io, $output] = makeIo(OutputInterface::VERBOSITY_VERBOSE);
@@ -481,10 +476,8 @@ describe('RunCommand auto-commit styling', function (): void {
 
         $text = $output->fetch();
 
-        expect($text)->toContain('git add');
         expect($text)->toContain('git commit');
         // Auto-commit actions should not show the verbose `$ command` detail
-        expect($text)->not->toContain('$ git add');
         expect($text)->not->toContain('$ git commit');
     });
 
@@ -494,15 +487,20 @@ describe('RunCommand auto-commit styling', function (): void {
                 command: ['composer', 'require', 'pkg'],
                 output: 'installed',
             ),
-            'git add -A' => ActionResult::success(
-                command: ['git', 'add', '-A'],
-                output: '',
-            ),
-            'git commit *' => ActionResult::failure(1, 'nothing to commit'),
         ]);
 
-        $recipe = writeRecipe($this->tempPath, <<<'PHP'
-        return compose('Test')->in('.')->commit(automatically: true)->step('Install', fn(Step $step) => $step->composer(install: ['pkg']));
+        (new Process(['git', 'init'], $this->tempPath))->run();
+        (new Process(['git', 'config', 'user.name', 'Test'], $this->tempPath))->run();
+        (new Process(['git', 'config', 'user.email', 'test@example.com'], $this->tempPath))->run();
+
+        $hooks = $this->tempPath.DIRECTORY_SEPARATOR.'.git'.DIRECTORY_SEPARATOR.'hooks';
+        file_put_contents($hooks.DIRECTORY_SEPARATOR.'commit-msg', "#!/bin/sh\nexit 1\n");
+        chmod($hooks.DIRECTORY_SEPARATOR.'commit-msg', 0755);
+
+        $recipe = writeRecipe($this->tempPath, <<<PHP
+        return compose('Test')->in('{$this->tempPath}')->commit(automatically: true)->step('Install', function(Step \$step) {
+            \$step->composer(install: ['pkg'])->create('installed.txt', 'pkg');
+        });
         PHP);
 
         [$io, $output] = makeIo(OutputInterface::VERBOSITY_NORMAL);

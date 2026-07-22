@@ -43,6 +43,7 @@ php vendor/bin/rector process --dry-run --debug
 - **Actions** (`src/Actions/`): Two kinds of actions exist:
   - **Command-based actions** (Composer, Node, Git, Artisan, Sink): Build a `PendingCommand` via `command()` and execute through `ProcessExecutor` (Symfony Process). Rollback also via shell commands.
   - **Direct actions** (File/*): Override `execute()` to perform PHP-native I/O. Return `ActionResult` directly. Rollback via `rollbackDirect()`. Identified by `isDirect()` (when `command()` returns null).
+- GitCommit is a direct action that atomically stages and commits, capturing the parent SHA for `git reset --mixed` rollback. Auto-commits are pushed onto the RollbackManager stack.
 - **Builders** (`src/Builders/`): `Artisan` fluent builder collects artisan commands and compiles them to `ArtisanAction[]`.
 - **Execution** (`src/Execution/`): `Runner` orchestrates recipe execution. `Pipeline` passes `StepContext` through pipes (`ResolveOperations`, `ExecuteActions`). `ProcessExecutor` wraps Symfony Process. `RollbackManager` handles failure recovery.
 - **Events** (`src/Events/`): `EventDispatcher` fires lifecycle events (StepStarting/Completed/Failed, ActionExecuting/Completed/Failed, RollbackStarting/Completed).

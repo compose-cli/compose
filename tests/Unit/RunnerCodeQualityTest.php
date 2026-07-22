@@ -114,28 +114,40 @@ describe('Runner code quality', function (): void {
     });
 
     it('runs code quality before auto-commit', function (): void {
-        $fake = ProcessExecutor::fake();
+        ProcessExecutor::fake();
 
         $this->createFile('vendor/bin/pint', '#!/usr/bin/env php');
+
+        $dispatcher = new EventDispatcher;
+        $order = [];
+
+        $dispatcher->listen(ActionExecuting::class, function (ActionExecuting $event) use (&$order): void {
+            if ($event->codeQuality) {
+                $order[] = 'quality:'.$event->action->describe();
+            }
+
+            if ($event->autoCommit) {
+                $order[] = 'commit:'.$event->action->describe();
+            }
+        });
 
         $recipe = compose('Test Recipe')
             ->in($this->tempPath)
             ->format()
             ->commit(automatically: true);
 
-        $recipe->step('Install', fn (Step $step) => $step->composer(install: ['pkg']));
+        $recipe->step('Install', function (Step $step): void {
+            $step
+                ->composer(install: ['pkg'])
+                ->create('installed.txt', 'pkg');
+        });
 
-        $result = $recipe->run();
+        $result = $recipe->run($dispatcher);
 
         expect($result->successful)->toBeTrue();
-
-        $executed = $fake->executed();
-        $commands = array_map(fn ($cmd) => implode(' ', $cmd['command']), $executed);
-
-        $pintIndex = array_search('php vendor/bin/pint', $commands);
-        $commitIndex = array_search('git add -A', $commands);
-
-        expect($pintIndex)->toBeLessThan($commitIndex);
+        expect($order)->toHaveCount(2);
+        expect($order[0])->toStartWith('quality:');
+        expect($order[1])->toStartWith('commit:');
     });
 
     it('warns when pint is not installed', function (): void {

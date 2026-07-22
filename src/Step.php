@@ -16,7 +16,6 @@ use Compose\Actions\File\CopyFile;
 use Compose\Actions\File\CreateFile;
 use Compose\Actions\File\DeleteFile;
 use Compose\Actions\File\ReadFile;
-use Compose\Actions\Git\GitAdd;
 use Compose\Actions\Git\GitCommit;
 use Compose\Actions\Modify\ModifyAction;
 use Compose\Actions\Node\NodeInstall;
@@ -290,15 +289,17 @@ class Step
     }
 
     /**
-     * Add a git commit to this step.
+     * Add an atomic git commit to this step (stages all changes, then commits).
      *
-     * When message is null, the commit message will be resolved
-     * later by the CommitMessageGenerator (AI or default).
+     * When message is null, a default message is used. Prefer passing an
+     * explicit message, or rely on recipe-level auto-commit which uses the
+     * CommitMessageGenerator.
+     *
+     * Successful commits can be rolled back via `git reset --mixed`.
      */
     public function commit(?string $message = null): static
     {
-        $this->operations[] = new GitAdd;
-        $this->operations[] = new GitCommit(message: $message);
+        $this->operations[] = new GitCommit(message: $message, stageAll: true);
 
         return $this;
     }
