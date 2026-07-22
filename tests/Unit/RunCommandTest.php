@@ -365,8 +365,8 @@ describe('RunCommand --no-commit option', function (): void {
             ),
         ]);
 
-        $recipe = writeRecipe($this->tempPath, <<<'PHP'
-        return compose('Test')->in('.')->commit(automatically: true)->step('Install', fn(Step $step) => $step->composer(install: ['pkg']));
+        $recipe = writeRecipe($this->tempPath, <<<PHP
+        return compose('Test')->in('{$this->tempPath}')->commit(automatically: true)->step('Install', fn(Step \$step) => \$step->composer(install: ['pkg']));
         PHP);
 
         [$io, $output] = makeIo(OutputInterface::VERBOSITY_NORMAL);
