@@ -1,9 +1,11 @@
 <?php
 
+use Compose\Actions\Artisan\ArtisanAction;
 use Compose\Actions\Config\ConfigAction;
 use Compose\Builders\Artisan;
 use Compose\Builders\ConfigBuilder;
 use Compose\Enums\ConfigOperation;
+use Spatie\Permission\PermissionServiceProvider;
 
 describe('ConfigAction', function (): void {
 
@@ -327,16 +329,16 @@ describe('Artisan::config()', function (): void {
     it('preserves ordering with artisan commands', function (): void {
         $builder = new Artisan;
         $builder
-            ->publish(provider: \Spatie\Permission\PermissionServiceProvider::class)
+            ->publish(provider: PermissionServiceProvider::class)
             ->config('permission.teams', true)
             ->migrate();
 
         $actions = $builder->actions();
 
         expect($actions)->toHaveCount(3);
-        expect($actions[0])->toBeInstanceOf(\Compose\Actions\Artisan\ArtisanAction::class);
+        expect($actions[0])->toBeInstanceOf(ArtisanAction::class);
         expect($actions[1])->toBeInstanceOf(ConfigAction::class);
-        expect($actions[2])->toBeInstanceOf(\Compose\Actions\Artisan\ArtisanAction::class);
+        expect($actions[2])->toBeInstanceOf(ArtisanAction::class);
     });
 
     it('throws for single-segment dot-notation', function (): void {

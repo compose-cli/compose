@@ -58,17 +58,17 @@ describe('Sink', function (): void {
 
         it('throws on github shorthand without path', function (): void {
             expect(fn () => (new Sink(from: 'github:laravel/laravel@11.x:'))->resolveUrl())
-                ->toThrow(\InvalidArgumentException::class, 'File path is required');
+                ->toThrow(InvalidArgumentException::class, 'File path is required');
         });
 
         it('throws on github shorthand without colon separator', function (): void {
             expect(fn () => (new Sink(from: 'github:laravel/laravel'))->resolveUrl())
-                ->toThrow(\InvalidArgumentException::class, 'Expected format');
+                ->toThrow(InvalidArgumentException::class, 'Expected format');
         });
 
         it('throws on github shorthand without owner/repo format', function (): void {
             expect(fn () => (new Sink(from: 'github:laravel:file.php'))->resolveUrl())
-                ->toThrow(\InvalidArgumentException::class, 'owner/repo format');
+                ->toThrow(InvalidArgumentException::class, 'owner/repo format');
         });
 
         it('caches the resolved URL', function (): void {

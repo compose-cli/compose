@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Compose\Support\PhpFile;
 
 use Nette\PhpGenerator\ClassType;
+use Nette\PhpGenerator\Constant;
+use Nette\PhpGenerator\Method;
 use Nette\PhpGenerator\PhpNamespace;
+use Nette\PhpGenerator\Property;
 use RuntimeException;
 
 class ClassManipulator
@@ -163,7 +166,7 @@ class ClassManipulator
     }
 
     /**
-     * @param  \Nette\PhpGenerator\Method|\Nette\PhpGenerator\Property|\Nette\PhpGenerator\Constant  $member
+     * @param  Method|Property|Constant  $member
      */
     private function applyVisibility(object $member, string $visibility): void
     {

@@ -3,6 +3,7 @@
 use Compose\Builders\Artisan;
 use Compose\Builders\ConfigBuilder;
 use Compose\Builders\EnvBuilder;
+use Compose\Builders\JsonModifyBuilder;
 use Compose\Builders\ModifyBuilder;
 use Compose\Enums\Node;
 use Compose\Enums\TaskType;
@@ -86,7 +87,7 @@ $recipe->step('CI & Config', function (Step $step): void {
                   - run: echo "Deploying..."
             YAML)
         ->modify('package.json', fn (ModifyBuilder $m) => $m
-            ->json(fn (\Compose\Builders\JsonModifyBuilder $j) => $j
+            ->json(fn (JsonModifyBuilder $j) => $j
                 ->set('scripts.lint', 'pint && rector process')
                 ->set('scripts.test', 'pest')
                 ->merge('keywords', ['laravel', 'compose'])),

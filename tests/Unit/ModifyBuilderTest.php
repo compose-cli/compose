@@ -1,5 +1,6 @@
 <?php
 
+use Carbon\Carbon;
 use Compose\Builders\JsonModifyBuilder;
 use Compose\Builders\ModifyBuilder;
 use Compose\Payloads\ModifyOperationPayload;
@@ -100,11 +101,11 @@ describe('ModifyBuilder', function (): void {
 
         it('collects addImport operations', function (): void {
             $builder = new ModifyBuilder;
-            $builder->addImport(\Carbon\Carbon::class);
+            $builder->addImport(Carbon::class);
 
             $ops = $builder->operations();
             expect($ops[0]->type)->toBe('add_import');
-            expect($ops[0]->arguments['class'])->toBe(\Carbon\Carbon::class);
+            expect($ops[0]->arguments['class'])->toBe(Carbon::class);
         });
 
     });
@@ -179,7 +180,7 @@ describe('ModifyBuilder', function (): void {
             $builder->json(fn (JsonModifyBuilder $j) => $j->set('name', 'app'));
 
             $builder->operations();
-        })->throws(\LogicException::class, 'Cannot mix PHP class operations and JSON operations');
+        })->throws(LogicException::class, 'Cannot mix PHP class operations and JSON operations');
 
         it('allows mixing text operations with PHP class operations', function (): void {
             $builder = new ModifyBuilder;
