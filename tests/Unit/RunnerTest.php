@@ -801,17 +801,17 @@ describe('Runner feature mode', function (): void {
     it('throws when using base() with NewFeature type', function (): void {
         compose('Feature Recipe', type: TaskType::NewFeature)
             ->base('https://github.com/laravel/laravel.git');
-    })->throws(\LogicException::class, 'base() can only be used with TaskType::NewProject');
+    })->throws(LogicException::class, 'base() can only be used with TaskType::NewProject');
 
     it('throws when using fresh mode with NewFeature type', function (): void {
         compose('Feature Recipe', type: TaskType::NewFeature)
             ->in('.', fresh: true);
-    })->throws(\LogicException::class, 'fresh mode can only be used with TaskType::NewProject');
+    })->throws(LogicException::class, 'fresh mode can only be used with TaskType::NewProject');
 
     it('throws when using branch() with NewProject type', function (): void {
         compose('New Project', type: TaskType::NewProject)
             ->branch('feature/test');
-    })->throws(\LogicException::class, 'branch() is for existing projects');
+    })->throws(LogicException::class, 'branch() is for existing projects');
 
     it('allows branch() with NewFeature type', function (): void {
         ProcessExecutor::fake();

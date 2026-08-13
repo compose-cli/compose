@@ -1,8 +1,11 @@
 <?php
 
+use Carbon\Carbon;
 use Compose\Support\PhpFile\ClassManipulator;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Nette\PhpGenerator\ClassType;
 use Nette\PhpGenerator\PhpNamespace;
+use Spatie\Permission\Traits\HasRoles;
 
 describe('ClassManipulator', function (): void {
 
@@ -37,10 +40,10 @@ describe('ClassManipulator', function (): void {
             $class = $ns->addClass('User');
             $m = new ClassManipulator($class, $ns);
 
-            $m->addTrait(\Spatie\Permission\Traits\HasRoles::class);
+            $m->addTrait(HasRoles::class);
 
-            expect($class->getTraits())->toHaveKey(\Spatie\Permission\Traits\HasRoles::class);
-            expect(array_values($ns->getUses()))->toContain(\Spatie\Permission\Traits\HasRoles::class);
+            expect($class->getTraits())->toHaveKey(HasRoles::class);
+            expect(array_values($ns->getUses()))->toContain(HasRoles::class);
         });
 
     });
@@ -74,10 +77,10 @@ describe('ClassManipulator', function (): void {
             $class = $ns->addClass('User');
             $m = new ClassManipulator($class, $ns);
 
-            $m->addInterface(\Illuminate\Contracts\Auth\Authenticatable::class);
+            $m->addInterface(Authenticatable::class);
 
-            expect(array_values($class->getImplements()))->toContain(\Illuminate\Contracts\Auth\Authenticatable::class);
-            expect(array_values($ns->getUses()))->toContain(\Illuminate\Contracts\Auth\Authenticatable::class);
+            expect(array_values($class->getImplements()))->toContain(Authenticatable::class);
+            expect(array_values($ns->getUses()))->toContain(Authenticatable::class);
         });
 
     });
@@ -93,9 +96,9 @@ describe('ClassManipulator', function (): void {
             $class = $ns->addClass('User');
             $m = new ClassManipulator($class, $ns);
 
-            $m->addImport(\Carbon\Carbon::class);
+            $m->addImport(Carbon::class);
 
-            expect(array_values($ns->getUses()))->toContain(\Carbon\Carbon::class);
+            expect(array_values($ns->getUses()))->toContain(Carbon::class);
         });
 
     });
@@ -104,13 +107,13 @@ describe('ClassManipulator', function (): void {
 
         it('removes a use import from the namespace', function (): void {
             $ns = new PhpNamespace('App\\Models');
-            $ns->addUse(\Carbon\Carbon::class);
+            $ns->addUse(Carbon::class);
             $class = $ns->addClass('User');
             $m = new ClassManipulator($class, $ns);
 
-            $m->removeImport(\Carbon\Carbon::class);
+            $m->removeImport(Carbon::class);
 
-            expect(array_values($ns->getUses()))->not->toContain(\Carbon\Carbon::class);
+            expect(array_values($ns->getUses()))->not->toContain(Carbon::class);
         });
 
     });

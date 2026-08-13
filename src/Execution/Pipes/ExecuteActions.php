@@ -159,7 +159,7 @@ class ExecuteActions
      *
      * Returns an ActionResult on failure, or null if the check passed or wasn't needed.
      */
-    private function runPreflight(\Compose\Actions\Action $action, StepContext $context): ?ActionResult
+    private function runPreflight(Action $action, StepContext $context): ?ActionResult
     {
         $class = $action::class;
 

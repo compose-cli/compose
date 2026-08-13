@@ -11,7 +11,7 @@ use Compose\Step;
 
 class InstallPermissions extends Recipe
 {
-    #[\Override]
+    #[Override]
     public function compose(Step $step): void
     {
         $step->composer(install: ['spatie/laravel-permission']);
@@ -20,7 +20,7 @@ class InstallPermissions extends Recipe
 
 class InstallTelescope extends Recipe
 {
-    #[\Override]
+    #[Override]
     public function compose(Step $step): void
     {
         $step->composer(dev: ['laravel/telescope']);
@@ -29,19 +29,19 @@ class InstallTelescope extends Recipe
 
 class CustomNameRecipe extends Recipe
 {
-    #[\Override]
+    #[Override]
     public function name(): string
     {
         return 'My Custom Recipe';
     }
 
-    #[\Override]
+    #[Override]
     public function description(): string
     {
         return 'A recipe with custom name and description.';
     }
 
-    #[\Override]
+    #[Override]
     public function compose(Step $step): void
     {
         $step->composer(install: ['custom/package']);
@@ -53,21 +53,21 @@ class RecipeWithHooks extends Recipe
     /** @var string[] */
     public array $callOrder = [];
 
-    #[\Override]
+    #[Override]
     public function before(Step $step): void
     {
         $this->callOrder[] = 'before';
         $step->composer(install: ['before/package']);
     }
 
-    #[\Override]
+    #[Override]
     public function compose(Step $step): void
     {
         $this->callOrder[] = 'compose';
         $step->composer(install: ['main/package']);
     }
 
-    #[\Override]
+    #[Override]
     public function after(Step $step): void
     {
         $this->callOrder[] = 'after';
@@ -90,7 +90,7 @@ class ConfigurableRecipe extends Recipe
         return new static(...$roles);
     }
 
-    #[\Override]
+    #[Override]
     public function compose(Step $step): void
     {
         $step->composer(install: ['spatie/laravel-permission']);
@@ -104,13 +104,13 @@ class ConfigurableRecipe extends Recipe
 class RecipeWithDependency extends Recipe
 {
     /** @return array<class-string<Recipe>> */
-    #[\Override]
+    #[Override]
     public function requires(): array
     {
         return [InstallPermissions::class];
     }
 
-    #[\Override]
+    #[Override]
     public function compose(Step $step): void
     {
         $step->artisan('permission:create-role admin');
@@ -120,13 +120,13 @@ class RecipeWithDependency extends Recipe
 class RecipeWithTransitiveDeps extends Recipe
 {
     /** @return array<class-string<Recipe>> */
-    #[\Override]
+    #[Override]
     public function requires(): array
     {
         return [RecipeWithDependency::class];
     }
 
-    #[\Override]
+    #[Override]
     public function compose(Step $step): void
     {
         $step->artisan('permission:create-role editor');
@@ -136,26 +136,26 @@ class RecipeWithTransitiveDeps extends Recipe
 class CircularA extends Recipe
 {
     /** @return array<class-string<Recipe>> */
-    #[\Override]
+    #[Override]
     public function requires(): array
     {
         return [CircularB::class];
     }
 
-    #[\Override]
+    #[Override]
     public function compose(Step $step): void {}
 }
 
 class CircularB extends Recipe
 {
     /** @return array<class-string<Recipe>> */
-    #[\Override]
+    #[Override]
     public function requires(): array
     {
         return [CircularA::class];
     }
 
-    #[\Override]
+    #[Override]
     public function compose(Step $step): void {}
 }
 

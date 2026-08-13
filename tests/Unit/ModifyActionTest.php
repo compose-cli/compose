@@ -3,6 +3,7 @@
 use Compose\Actions\Modify\ModifyAction;
 use Compose\Enums\ModifyOperation;
 use Compose\Payloads\ModifyOperationPayload;
+use Spatie\Permission\Traits\HasRoles;
 
 describe('ModifyAction', function (): void {
 
@@ -28,7 +29,7 @@ describe('ModifyAction', function (): void {
             $action = (new ModifyAction(
                 path: 'app/Models/User.php',
                 operations: [
-                    new ModifyOperationPayload('add_trait', ['trait' => \Spatie\Permission\Traits\HasRoles::class]),
+                    new ModifyOperationPayload('add_trait', ['trait' => HasRoles::class]),
                 ],
             ))->withContext(context(workingDirectory: $this->tempPath));
 
@@ -160,7 +161,7 @@ describe('ModifyAction', function (): void {
             $action = (new ModifyAction(
                 path: 'app/Models/User.php',
                 operations: [
-                    new ModifyOperationPayload('add_trait', ['trait' => \Spatie\Permission\Traits\HasRoles::class]),
+                    new ModifyOperationPayload('add_trait', ['trait' => HasRoles::class]),
                     new ModifyOperationPayload('add_method', [
                         'name' => 'isAdmin',
                         'body' => 'return $this->hasRole("admin");',
@@ -416,7 +417,7 @@ describe('ModifyAction', function (): void {
             $action = (new ModifyAction(
                 path: 'app/Models/User.php',
                 operations: [
-                    new ModifyOperationPayload('add_trait', ['trait' => \Spatie\Permission\Traits\HasRoles::class]),
+                    new ModifyOperationPayload('add_trait', ['trait' => HasRoles::class]),
                 ],
             ))->withContext(context(workingDirectory: $this->tempPath));
 

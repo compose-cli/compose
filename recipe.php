@@ -3,6 +3,7 @@
 use Compose\Builders\Artisan;
 use Compose\Builders\ConfigBuilder;
 use Compose\Builders\EnvBuilder;
+use Compose\Builders\JsonModifyBuilder;
 use Compose\Builders\ModifyBuilder;
 use Compose\Enums\Node;
 use Compose\Enums\TaskType;
@@ -19,20 +20,20 @@ $recipe->step('Install Dependencies', function (Step $step): void {
         ->composer(run: 'install')
         ->node(run: 'install');
 });
-    
+
 $recipe->step('Dev Tooling', function (Step $step): void {
     $step
-    ->composer(
-        dev: [
-            'rector/rector',
-            'laravel/pint',
-            'pestphp/pest',
-            'phpstan/phpstan',
-        ],
+        ->composer(
+            dev: [
+                'rector/rector',
+                'laravel/pint',
+                'pestphp/pest',
+                'phpstan/phpstan',
+            ],
         )
 
         ->node(dev: ['vite', '@vitejs/plugin-vue', 'tailwindcss']);
-    });
+});
 
 return $recipe;
 
@@ -95,7 +96,7 @@ $recipe->step('CI & Config', function (Step $step): void {
                   - run: echo "Deploying..."
             YAML)
         ->modify('package.json', fn (ModifyBuilder $m) => $m
-            ->json(fn (\Compose\Builders\JsonModifyBuilder $j) => $j
+            ->json(fn (JsonModifyBuilder $j) => $j
                 ->set('scripts.lint', 'pint && rector process')
                 ->set('scripts.test', 'pest')
                 ->merge('keywords', ['laravel', 'compose'])),

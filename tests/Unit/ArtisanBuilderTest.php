@@ -2,6 +2,7 @@
 
 use Compose\Actions\Artisan\ArtisanAction;
 use Compose\Builders\Artisan;
+use Spatie\Permission\PermissionServiceProvider;
 
 describe('Artisan', function (): void {
 
@@ -92,7 +93,7 @@ describe('Artisan', function (): void {
     it('generates a vendor:publish command with provider', function (): void {
         $builder = new Artisan;
 
-        $builder->publish(provider: \Spatie\Permission\PermissionServiceProvider::class);
+        $builder->publish(provider: PermissionServiceProvider::class);
 
         expect($builder->actions()[0]->command)
             ->toBe('vendor:publish --provider=Spatie\Permission\PermissionServiceProvider');
@@ -110,7 +111,7 @@ describe('Artisan', function (): void {
         $builder = new Artisan;
 
         $builder->publish(
-            provider: \Spatie\Permission\PermissionServiceProvider::class,
+            provider: PermissionServiceProvider::class,
             tag: 'permission-migrations',
         );
 

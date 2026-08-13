@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Compose\Builders;
 
 use Closure;
+use Compose\Support\TextFile\EnvFileParser;
 
 class EnvBuilder
 {
@@ -94,14 +95,14 @@ class EnvBuilder
             $conditionValue = $valueOrCallback;
             $this->operations[] = [
                 'type' => 'when',
-                'condition' => static fn (\Compose\Support\TextFile\EnvFileParser $p): bool => $p->get($conditionKey) === $conditionValue,
+                'condition' => static fn (EnvFileParser $p): bool => $p->get($conditionKey) === $conditionValue,
                 'callback' => $callback,
             ];
         } elseif (is_string($key) && $valueOrCallback instanceof Closure) {
             $conditionKey = $key;
             $this->operations[] = [
                 'type' => 'when',
-                'condition' => static fn (\Compose\Support\TextFile\EnvFileParser $p): bool => $p->has($conditionKey),
+                'condition' => static fn (EnvFileParser $p): bool => $p->has($conditionKey),
                 'callback' => $valueOrCallback,
             ];
         } else {

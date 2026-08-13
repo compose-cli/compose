@@ -2,6 +2,7 @@
 
 use Compose\Actions\Git\GitBranch;
 use Compose\Enums\GitOperation;
+use Symfony\Component\Process\Process;
 
 describe('GitBranch', function (): void {
 
@@ -34,8 +35,8 @@ describe('GitBranch', function (): void {
         $repoPath = $this->tempPath.DIRECTORY_SEPARATOR.'branch-test';
         mkdir($repoPath, 0755, true);
 
-        (new \Symfony\Component\Process\Process(['git', 'init'], $repoPath))->run();
-        (new \Symfony\Component\Process\Process(['git', 'commit', '--allow-empty', '-m', 'init'], $repoPath))->run();
+        (new Process(['git', 'init'], $repoPath))->run();
+        (new Process(['git', 'commit', '--allow-empty', '-m', 'init'], $repoPath))->run();
 
         $ctx = context(workingDirectory: $repoPath);
         $action = new GitBranch(branch: 'feature/test');
@@ -44,7 +45,7 @@ describe('GitBranch', function (): void {
         expect($result->successful)->toBeTrue();
         expect($action->canRollbackDirect())->toBeTrue();
 
-        $detect = new \Symfony\Component\Process\Process(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], $repoPath);
+        $detect = new Process(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], $repoPath);
         $detect->run();
         expect(trim($detect->getOutput()))->toBe('feature/test');
     });
@@ -53,10 +54,10 @@ describe('GitBranch', function (): void {
         $repoPath = $this->tempPath.DIRECTORY_SEPARATOR.'branch-rollback-test';
         mkdir($repoPath, 0755, true);
 
-        (new \Symfony\Component\Process\Process(['git', 'init'], $repoPath))->run();
-        (new \Symfony\Component\Process\Process(['git', 'commit', '--allow-empty', '-m', 'init'], $repoPath))->run();
+        (new Process(['git', 'init'], $repoPath))->run();
+        (new Process(['git', 'commit', '--allow-empty', '-m', 'init'], $repoPath))->run();
 
-        $detect = new \Symfony\Component\Process\Process(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], $repoPath);
+        $detect = new Process(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], $repoPath);
         $detect->run();
         $originalBranch = trim($detect->getOutput());
 
@@ -68,11 +69,11 @@ describe('GitBranch', function (): void {
 
         expect($rollbackResult->successful)->toBeTrue();
 
-        $detect = new \Symfony\Component\Process\Process(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], $repoPath);
+        $detect = new Process(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], $repoPath);
         $detect->run();
         expect(trim($detect->getOutput()))->toBe($originalBranch);
 
-        $branchList = new \Symfony\Component\Process\Process(['git', 'branch', '--list', 'feature/rollback-test'], $repoPath);
+        $branchList = new Process(['git', 'branch', '--list', 'feature/rollback-test'], $repoPath);
         $branchList->run();
         expect(trim($branchList->getOutput()))->toBe('');
     });
@@ -81,9 +82,9 @@ describe('GitBranch', function (): void {
         $repoPath = $this->tempPath.DIRECTORY_SEPARATOR.'branch-exists-test';
         mkdir($repoPath, 0755, true);
 
-        (new \Symfony\Component\Process\Process(['git', 'init'], $repoPath))->run();
-        (new \Symfony\Component\Process\Process(['git', 'commit', '--allow-empty', '-m', 'init'], $repoPath))->run();
-        (new \Symfony\Component\Process\Process(['git', 'branch', 'feature/existing'], $repoPath))->run();
+        (new Process(['git', 'init'], $repoPath))->run();
+        (new Process(['git', 'commit', '--allow-empty', '-m', 'init'], $repoPath))->run();
+        (new Process(['git', 'branch', 'feature/existing'], $repoPath))->run();
 
         $ctx = context(workingDirectory: $repoPath);
         $action = new GitBranch(branch: 'feature/existing');
