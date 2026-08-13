@@ -17,7 +17,6 @@ $commands = [
 ];
 
 $application->addCommands($commands);
-$application->setDefaultCommand('run');
 
 $exitCode = $application->run();
 

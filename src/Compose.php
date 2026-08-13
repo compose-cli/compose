@@ -169,6 +169,28 @@ class Compose
         return $this;
     }
 
+    public function clone(string $repo, ?string $branch = null, ?string $directory = null): static
+    {
+        if ($this->resolvedType() !== TaskType::NewProject) {
+            throw new \LogicException('clone() can only be used with TaskType::NewProject. Use branch() for existing projects.');
+        }
+
+        $this->baseRepo = $repo;
+        $this->baseBranch = $branch;
+        $this->target = $directory;
+        $this->projectName = slugify($this->getName());
+
+        array_unshift($this->steps, new Step(
+            name: 'Clone repository',
+            description: "Clone {$repo}".($branch ? " (branch: {$branch})" : '')." into {$directory}",
+            callback: function (Step $step) use ($repo, $branch, $directory): void {
+                $step->addOperation(new GitClone(repo: $repo, branch: $branch, directory: $directory));
+            },
+        ));
+
+        return $this;
+    }
+
     public function branch(string $name, bool $create = true): static
     {
         if ($this->resolvedType() === TaskType::NewProject) {
@@ -272,55 +294,55 @@ class Compose
      *
      * @param  Recipe|class-string<Recipe>|array<Recipe|class-string<Recipe>>  $recipe
      */
-    public function recipe(Recipe|string|array $recipe): static
-    {
-        $recipes = is_array($recipe) ? $recipe : [$recipe];
+    // public function recipe(Recipe|string|array $recipe): static
+    // {
+    //     $recipes = is_array($recipe) ? $recipe : [$recipe];
 
-        foreach ($recipes as $r) {
-            $this->resolveRecipe($r);
-        }
+    //     foreach ($recipes as $r) {
+    //         $this->resolveRecipe($r);
+    //     }
 
-        return $this;
-    }
+    //     return $this;
+    // }
 
     /**
      * Resolve a recipe and its dependencies, creating Steps for each.
      *
      * @param  array<class-string<Recipe>>  $resolving  Current resolution stack for circular detection
      */
-    protected function resolveRecipe(Recipe|string $recipe, array $resolving = []): void
-    {
-        $instance = is_string($recipe) ? new $recipe : $recipe;
-        $class = $instance::class;
+    // protected function resolveRecipe(Recipe|string $recipe, array $resolving = []): void
+    // {
+    //     $instance = is_string($recipe) ? new $recipe : $recipe;
+    //     $class = $instance::class;
 
-        if (isset($this->registeredRecipes[$class])) {
-            return;
-        }
+    //     if (isset($this->registeredRecipes[$class])) {
+    //         return;
+    //     }
 
-        if (in_array($class, $resolving, true)) {
-            throw new Exceptions\CircularDependencyException(
-                'Circular dependency detected: '.implode(' -> ', [...$resolving, $class]),
-            );
-        }
+    //     if (in_array($class, $resolving, true)) {
+    //         throw new Exceptions\CircularDependencyException(
+    //             'Circular dependency detected: '.implode(' -> ', [...$resolving, $class]),
+    //         );
+    //     }
 
-        $resolving[] = $class;
+    //     $resolving[] = $class;
 
-        foreach ($instance->requires() as $dependency) {
-            $this->resolveRecipe($dependency, $resolving);
-        }
+    //     foreach ($instance->requires() as $dependency) {
+    //         $this->resolveRecipe($dependency, $resolving);
+    //     }
 
-        $this->registeredRecipes[$class] = $instance;
+    //     $this->registeredRecipes[$class] = $instance;
 
-        $this->steps[] = new Step(
-            name: $instance->name(),
-            description: $instance->description() ?: null,
-            callback: function (Step $step) use ($instance): void {
-                $instance->before($step);
-                $instance->compose($step);
-                $instance->after($step);
-            },
-        );
-    }
+    //     $this->steps[] = new Step(
+    //         name: $instance->name(),
+    //         description: $instance->description() ?: null,
+    //         callback: function (Step $step) use ($instance): void {
+    //             $instance->before($step);
+    //             $instance->compose($step);
+    //             $instance->after($step);
+    //         },
+    //     );
+    // }
 
     /**
      * Execute the composition and return the result.

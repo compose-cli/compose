@@ -10,22 +10,31 @@ use Compose\Step;
 
 $recipe = compose('Compose CLI', type: TaskType::NewProject)
     ->in('tests/tmp', fresh: true)
-    ->base(repo: 'https://github.com/laravel/laravel.git')
-    ->node(Node::Yarn)
+    ->base(repo: 'https://github.com/laravel/laravel.git', branch: '11.x')
+    ->node(Node::Npm)
     ->commit(automatically: true, smart: true);
 
+$recipe->step('Install Dependencies', function (Step $step): void {
+    $step
+        ->composer(run: 'install')
+        ->node(run: 'install');
+});
+    
 $recipe->step('Dev Tooling', function (Step $step): void {
     $step
-        ->composer(
-            dev: [
-                'rector/rector',
-                'laravel/pint',
-                'pestphp/pest',
-                'phpstan/phpstan',
-            ],
+    ->composer(
+        dev: [
+            'rector/rector',
+            'laravel/pint',
+            'pestphp/pest',
+            'phpstan/phpstan',
+        ],
         )
+
         ->node(dev: ['vite', '@vitejs/plugin-vue', 'tailwindcss']);
-});
+    });
+
+return $recipe;
 
 $recipe->step('Auth & Permissions', function (Step $step): void {
     $step
