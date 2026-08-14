@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace Compose\Execution;
 
 use Compose\Actions\Action;
-use Compose\Actions\Git\GitAdd;
 use Compose\Actions\Git\GitCommit;
-use Compose\Actions\Git\GitInit;
 use Compose\Actions\Quality\PintFormat;
 use Compose\Actions\Quality\RectorProcess;
 use Compose\Contracts\CommitMessageGenerator;
@@ -27,6 +25,7 @@ use Compose\Execution\Pipes\ResolveOperations;
 use Compose\Filesystem;
 use Compose\RecipeContext;
 use Compose\Step;
+use Symfony\Component\Process\Process;
 
 class Runner
 {
@@ -108,7 +107,7 @@ class Runner
             }
 
             if ($config->autoCommit && $stepResult->successful && ! $isBaseCloneStep) {
-                $this->autoCommit($step, $context, $stepResult);
+                $this->autoCommit($step, $context, $stepResult, $rollback);
             }
         }
 
@@ -151,6 +150,15 @@ class Runner
                 if ($config->formatWithPint) {
                     $commands[] = (new PintFormat)->withContext($context)->describe();
                     $rollbackable[] = false;
+                }
+
+                if ($config->autoCommit && ! $this->stepHasManualCommit($step)) {
+                    $commit = (new GitCommit(
+                        message: $step->message ?? "compose: {$step->name}",
+                        stageAll: true,
+                    ))->withContext($context);
+                    $commands[] = $commit->describe();
+                    $rollbackable[] = true;
                 }
             }
 
@@ -223,51 +231,61 @@ class Runner
 
     /**
      * Initialize a git repository in the project directory.
+     *
+     * Uses a real process (not ProcessExecutor) so auto-commit works even
+     * when command execution is faked in tests.
      */
     private function gitInit(RecipeContext $context): void
     {
-        $action = (new GitInit)->withContext($context);
-        $action->allowFailure = true;
+        $cwd = $context->workingDirectory;
 
-        $this->executor->execute(
-            $action->command()->toArray(),
-            $context->workingDirectory,
+        if ($cwd !== null && $cwd !== '' && ! is_dir($cwd)) {
+            mkdir($cwd, 0755, true);
+        }
+
+        $process = new Process(
+            [$context->gitBinary, 'init'],
+            $cwd,
         );
+        $process->run();
     }
 
     /**
      * Auto-commit changes after a successful step.
      *
      * Skips if the step already contains a manual GitCommit action.
+     * Successful commits are pushed onto the rollback stack so RollbackAll
+     * can reset them atomically.
      */
-    private function autoCommit(Step $step, RecipeContext $context, StepResult $stepResult): void
+    private function autoCommit(Step $step, RecipeContext $context, StepResult $stepResult, RollbackManager $rollback): void
     {
-        foreach ($step->operations() as $operation) {
-            if ($operation instanceof GitCommit) {
-                return;
-            }
+        if ($this->stepHasManualCommit($step)) {
+            return;
         }
 
         $message = $this->commitMessageGenerator->generate($step, $stepResult->actionResults);
 
-        $addAction = (new GitAdd)->withContext($context);
-        $addAction->allowFailure = true;
-        $this->executeAutoCommitAction($addAction, $context);
-
-        $commitAction = (new GitCommit(message: $message))->withContext($context);
+        $commitAction = (new GitCommit(message: $message, stageAll: true))->withContext($context);
         $commitAction->allowFailure = true;
-        $this->executeAutoCommitAction($commitAction, $context);
+
+        $result = $this->executeAutoCommitAction($commitAction, $context);
+
+        if ($result->successful && $commitAction->canBeRolledBack()) {
+            $rollback->push($commitAction);
+        }
     }
 
     /**
      * Execute a single auto-commit action, firing lifecycle events.
      */
-    private function executeAutoCommitAction(Action $action, RecipeContext $context): void
+    private function executeAutoCommitAction(Action $action, RecipeContext $context): ActionResult
     {
         $this->dispatcher->dispatch(new ActionExecuting($action, autoCommit: true));
 
-        $result = $this->executor->execute(
-            $action->command()->toArray(),
+        $directResult = $action->execute($context);
+
+        $result = $directResult ?? $this->executor->execute(
+            $action->command()?->toArray() ?? [],
             $context->workingDirectory,
         );
 
@@ -276,6 +294,22 @@ class Runner
         } else {
             $this->dispatcher->dispatch(new ActionFailed($action, $result, warned: true, autoCommit: true));
         }
+
+        return $result;
+    }
+
+    /**
+     * Whether the step already queues a manual GitCommit.
+     */
+    private function stepHasManualCommit(Step $step): bool
+    {
+        foreach ($step->operations() as $operation) {
+            if ($operation instanceof GitCommit) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

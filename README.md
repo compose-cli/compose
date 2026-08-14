@@ -619,7 +619,7 @@ $step->test('tests/Feature/AuthTest.php', allowFailure: false);
 $step->commit('feat: initial project setup');
 ```
 
-This stages all changes (`git add -A`) and commits. When `commit(automatically: true)` is set on the recipe, the runner commits after each successful step using either the step's message or a generated message.
+This stages all changes (`git add -A`) and creates an atomic commit that can be rolled back via `git reset --mixed`. When `commit(automatically: true)` is set on the recipe, the runner commits after each successful step using either the step's message or a generated message. Auto-commits are pushed onto the rollback stack, so `RollbackAll` undoes them along with prior step actions.
 
 **Branching** is configured at the recipe level with `branch()`, which prepends a branch step before your user-defined steps. For new projects, `base()` serves the same role — it prepends a clone step. You don't call these on `Step` directly.
 
@@ -687,6 +687,7 @@ Every action that can be undone defines a rollback. The `RollbackManager` tracks
 | `GitClone` | Delete the cloned directory |
 | `GitBranch` | Checkout original branch, delete created branch |
 | `GitCheckout` | Checkout previous branch (`git checkout -`) |
+| `GitCommit` | `git reset --mixed` to the pre-commit SHA (or delete HEAD for the first commit) |
 | `CreateFile` | Delete the file (or restore original if overwritten) |
 | `CopyFile` | Delete the copy (or restore original) |
 | `AppendFile` | Truncate the appended bytes |
@@ -842,7 +843,7 @@ src/
 │   │   ├── GitBranch.php            # Direct execution, rollback restores original branch
 │   │   ├── GitCheckout.php
 │   │   ├── GitClone.php
-│   │   ├── GitCommit.php
+│   │   ├── GitCommit.php            # Direct execution, atomic stage+commit, rollback via reset
 │   │   └── GitInit.php
 │   ├── Test/
 │   │   └── TestAction.php         # Run artisan test --filter (command-based)
@@ -1416,7 +1417,7 @@ return compose('API Service')
 
 11. **Use `modify()` for PHP class changes instead of string manipulation.** `modify()` uses AST manipulation, so `addTrait`, `addMethod`, etc. are safe. FQCNs passed to `addTrait` and `addInterface` are automatically added as `use` imports.
 
-12. **Every action is rollbackable where possible.** Installs roll back to removes, file creates roll back to deletes, appends roll back to truncation, env and modify changes restore original contents. Branch creation rolls back by checking out the original branch and deleting the created branch. Artisan commands and script runs cannot be rolled back.
+12. **Every action is rollbackable where possible.** Installs roll back to removes, file creates roll back to deletes, appends roll back to truncation, env and modify changes restore original contents. Branch creation rolls back by checking out the original branch and deleting the created branch. Commits roll back via `git reset --mixed` to the pre-commit SHA. Artisan commands and script runs cannot be rolled back.
 
 13. **Don't mix `base()` with `branch()`.** `base()` is for `NewProject`, `branch()` is for `NewFeature`/`Refactoring`. They serve the same structural role (prepend a setup step) for different contexts.
 

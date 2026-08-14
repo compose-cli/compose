@@ -216,11 +216,10 @@ describe('timeout resolution cascade', function (): void {
         $fake = ProcessExecutor::fake();
 
         $recipe = compose('Test');
-        $recipe->step('Git', fn (Step $step) => $step->commit('init'));
+        $recipe->step('Git', fn (Step $step) => $step->addOperation(new GitAdd));
         $recipe->run();
 
         $fake->assertExecutedWithTimeout(['git', 'add', '-A'], 30.0);
-        $fake->assertExecutedWithTimeout(['git', 'commit', '-m', 'init'], 30.0);
     });
 
     it('applies different timeouts per step', function (): void {
